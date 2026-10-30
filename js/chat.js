@@ -225,12 +225,18 @@ function chatPanelHTML() {
     <div class="tw-scroll" id="twScroll"><div class="tw-list" id="twList"></div></div>
     <div class="tw-foot">
       <div class="tw-mode" id="twMode" hidden></div>
-      <div class="tw-input"><span class="tw-placeholder">Enviar un mensaje</span><span class="tw-input-emote">${ICONS.smile}</span></div>
+      <div class="tw-compose" id="twSender"></div>
+      <div class="tw-compose tw-reply-in" id="twReplyIn" hidden></div>
+      <div class="tw-input">
+        <span class="tw-placeholder">Enviar un mensaje</span>
+        <textarea class="tw-real-input" id="twInput" rows="1" placeholder="Enviar un mensaje" enterkeyhint="send" autocomplete="off"></textarea>
+        <span class="tw-input-emote" id="twEmoteBtn">${ICONS.smile}</span>
+      </div>
       <div class="tw-foot-row">
         <div class="tw-points">${ICONS.points}<span id="twPoints"></span></div>
         <div class="tw-foot-right">
           <button class="tw-icon-btn" tabindex="-1">${ICONS.gear}</button>
-          <button class="tw-chat-btn" tabindex="-1">Chat</button>
+          <button class="tw-chat-btn" id="twSendBtn" tabindex="-1">Chat</button>
         </div>
       </div>
     </div>

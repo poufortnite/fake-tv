@@ -401,17 +401,17 @@ function viewChannel(id) {
       </div>
 
       <div class="card">
-        <div class="field"><span>Escribir como</span>
+        <div class="field desk-compose"><span>Escribir como</span>
           <div class="row">
             <input id="who" list="usersDL" autocomplete="off" placeholder="nombre de usuario" value="${esc(s.lastUser || owner.name)}">
             <button class="btn ghost" id="rndUser" title="Usuario aleatorio">🎲</button>
           </div>
         </div>
-        <div class="who-preview" id="whoPreview"></div>
+        <div class="who-preview desk-compose" id="whoPreview"></div>
         <label class="check sm"><input type="checkbox" id="randomAfter"${s.randomAfter ? ' checked' : ''}><span>Elegir usuario aleatorio después de enviar</span></label>
 
-        <div class="reply-bar" id="replyBar" hidden></div>
-        <div class="composer">
+        <div class="reply-bar desk-compose" id="replyBar" hidden></div>
+        <div class="composer desk-compose">
           <textarea id="msgText" rows="3" placeholder="Mensaje…  (Enter envía · Shift+Enter salto)"></textarea>
           <button class="emote-toggle" id="emoteToggle" title="Emotes">${ICONS.smile}</button>
           <div class="emote-pop" id="emotePop" hidden></div>
@@ -420,9 +420,9 @@ function viewChannel(id) {
           <label class="check sm"><input type="checkbox" id="optHighlight"><span>Destacado</span></label>
           <label class="check sm"><input type="checkbox" id="optFirst"><span>Primer mensaje</span></label>
           <span class="grow"></span>
-          <button class="btn primary" id="sendBtn">Enviar</button>
+          <button class="btn primary desk-compose" id="sendBtn">Enviar</button>
         </div>
-        <p class="hint">/me acción · @usuario · códigos de emotes</p>
+        <p class="hint desk-compose">/me acción · @usuario · códigos de emotes</p>
       </div>
 
       <div class="card">
@@ -495,6 +495,7 @@ function resolveWho() {
 }
 
 function updateWhoPreview() {
+  renderSender();
   const u = DB.userByName($('#who').value);
   const el = $('#whoPreview');
   if (!u) { el.innerHTML = $('#who').value.trim() ? '<span class="muted-p small">Usuario nuevo (se creará al enviar)</span>' : ''; return; }
@@ -520,17 +521,19 @@ function pickRandomUser() {
 
 function setReply(m) {
   replyTarget = m;
-  const bar = $('#replyBar');
-  if (!m) { bar.hidden = true; bar.innerHTML = ''; return; }
+  const bar = $('#replyBar'), inPanel = $('#twReplyIn');
+  if (!m) { bar.hidden = true; bar.innerHTML = ''; inPanel.hidden = true; inPanel.innerHTML = ''; return; }
   const u = msgUser(m);
-  bar.hidden = false;
-  bar.innerHTML = `<span>${ICONS.reply} Respondiendo a <b>@${esc(u.name)}</b>: ${esc((m.text || '').slice(0, 60))}</span><button class="icon-btn xs" id="cancelReply">✕</button>`;
-  $('#cancelReply').onclick = () => setReply(null);
-  $('#msgText').focus();
+  const html = `<span>${ICONS.reply} Respondiendo a <b>@${esc(u.name)}</b>: ${esc((m.text || '').slice(0, 60))}</span><button class="icon-btn xs" data-cancel-reply>✕</button>`;
+  bar.hidden = false; bar.innerHTML = html;
+  inPanel.hidden = false; inPanel.innerHTML = html;
+  $$('[data-cancel-reply]').forEach(b => b.onclick = () => setReply(null));
+  (isMobile() ? $('#twInput') : $('#msgText')).focus();
 }
 
-function sendMessage() {
-  const ta = $('#msgText');
+const isMobile = () => matchMedia('(max-width: 820px)').matches;
+
+function sendMessage(ta = $('#msgText')) {
   const text = ta.value.trim();
   if (!text) return;
   const u = resolveWho(); if (!u) return;
@@ -550,11 +553,96 @@ function sendMessage() {
   CH.settings.lastUser = u.name; saveCH();
   if ($('#randomAfter').checked) pickRandomUser(); else updateWhoPreview();
   ta.focus();
+  if (ta.id === 'twInput') autoGrow(ta);
+}
+
+function autoGrow(ta) { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 110) + 'px'; }
+
+/* ---------- Quién lo envía (en el móvil, dentro del chat, como en twt2015) ---------- */
+function renderSender() {
+  const box = $('#twSender'); if (!box) return;
+  const name = $('#who').value.trim();
+  const u = DB.userByName(name);
+  const open = !!$('#senderMenu') && !$('#senderMenu').hidden;
+  box.innerHTML = `
+    <div class="sender-box">
+      <button class="sender-btn" id="senderBtn" aria-haspopup="listbox">
+        ${u ? avatarHTML(u, 28) : '<span class="avatar" style="width:28px;height:28px"></span>'}
+        <span class="sender-txt"><small>Lo envía</small><b style="color:${u ? readableColor(u.color) : 'inherit'}">${esc(u ? u.name : (name || '¿Quién?'))}</b></span>
+        <span class="sender-arrow">▾</span>
+      </button>
+      <button class="sender-dice" id="senderDice" title="Usuario aleatorio">🎲</button>
+      <div class="sender-menu" id="senderMenu" role="listbox"${open ? '' : ' hidden'}>
+        <input id="senderSearch" placeholder="Buscar o crear usuario…" autocomplete="off">
+        <div class="sender-list" id="senderList"></div>
+      </div>
+    </div>`;
+  $('#senderBtn').onclick = () => {
+    const m = $('#senderMenu'); m.hidden = !m.hidden;
+    if (!m.hidden) { renderSenderList(); }
+  };
+  $('#senderDice').onclick = pickRandomUser;
+  $('#senderSearch').oninput = renderSenderList;
+  $('#senderSearch').onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); const first = $('#senderList [data-pick]'); if (first) first.click(); }
+  };
+  $('#senderList').onclick = e => {
+    const b = e.target.closest('[data-pick]'); if (!b) return;
+    const u = DB.ensureUser(b.dataset.pick);
+    refreshUsersDatalist();
+    $('#who').value = u.name; CH.settings.lastUser = u.name; saveCH();
+    $('#senderMenu').hidden = true;
+    updateWhoPreview();
+    $('#twInput').focus();
+  };
+  if (open) renderSenderList();
+}
+
+function renderSenderList() {
+  const q = ($('#senderSearch')?.value || '').trim();
+  const ql = q.toLowerCase();
+  const rank = u => (u.id === CH.ownerId ? 0 : CH.mods.includes(u.id) ? 1 : CH.vips.includes(u.id) ? 2 : CH.subs[u.id] ? 3 : 4);
+  const users = DB.data.users.filter(u => u.name.toLowerCase().includes(ql))
+    .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+  const cur = $('#who').value.trim().toLowerCase();
+  const exact = users.some(u => u.name.toLowerCase() === cleanName(q).toLowerCase());
+  $('#senderList').innerHTML =
+    (q && !exact ? `<button class="sender-op new" data-pick="${esc(cleanName(q))}"><span class="sender-plus">+</span><span>Crear <b>${esc(cleanName(q))}</b></span></button>` : '') +
+    users.map(u => `
+      <button class="sender-op${u.name.toLowerCase() === cur ? ' sel' : ''}" data-pick="${esc(u.name)}" role="option">
+        ${avatarHTML(u, 32)}
+        <span class="sender-op-txt"><b><span class="tw-badges">${badgesHTML(CH, u)}</span><span style="color:${readableColor(u.color)}">${esc(u.name)}</span></b></span>
+      </button>`).join('') +
+    (!users.length && !q ? '<p class="muted-p small" style="padding:8px">Todavía no hay usuarios. Escribe un nombre para crearlo.</p>' : '');
+}
+
+/* Emotes en una hoja desde abajo (para el móvil) */
+function emoteSheet(ta) {
+  const own = DB.data.emotes.map(e => `<button class="emo" data-code="${esc(e.code)}" title="${esc(e.code)}"><img src="${esc(e.src)}" alt=""></button>`).join('');
+  const tw = Object.keys(TWITCH_EMOTES).map(c => `<button class="emo" data-code="${esc(c)}" title="${esc(c)}"><img src="${twitchEmoteURL(TWITCH_EMOTES[c])}" alt="" loading="lazy"></button>`).join('');
+  openModal({
+    title: 'Emotes',
+    body: (own ? `<div class="emo-sec">Tus emotes</div><div class="emo-grid">${own}</div>` : '') + `<div class="emo-sec">Twitch</div><div class="emo-grid">${tw}</div>`,
+    onMount(el, close) {
+      el.querySelector('.modal-body').onclick = e => {
+        const b = e.target.closest('[data-code]'); if (!b) return;
+        const sep = ta.value && !/\s$/.test(ta.value) ? ' ' : '';
+        ta.value += sep + b.dataset.code + ' ';
+        close(); ta.focus(); autoGrow(ta);
+      };
+    }
+  });
 }
 
 function bindChannel() {
   const s = CH.settings;
-  $('#sendBtn').onclick = sendMessage;
+  $('#sendBtn').onclick = () => sendMessage();
+  const twIn = $('#twInput');
+  twIn.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(twIn); } });
+  twIn.addEventListener('input', () => autoGrow(twIn));
+  twIn.addEventListener('focus', () => { const m = $('#senderMenu'); if (m) m.hidden = true; });
+  $('#twSendBtn').onclick = () => { if (isMobile()) sendMessage(twIn); };
+  $('#twEmoteBtn').onclick = () => { if (isMobile()) emoteSheet(twIn); };
   $('#msgText').addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
@@ -586,7 +674,16 @@ function bindChannel() {
 
   /* Acciones sobre mensajes del chat */
   $('#twList').addEventListener('click', async e => {
-    const btn = e.target.closest('[data-act]'); if (!btn) return;
+    const btn = e.target.closest('[data-act]');
+    if (!btn) {   // en el móvil, tocar un mensaje enseña sus opciones
+      const item = e.target.closest('[data-mid]');
+      if (!item || document.body.classList.contains('capture')) return;
+      const was = item.classList.contains('show-act');
+      $$('#twList .show-act').forEach(x => x.classList.remove('show-act'));
+      if (!was) item.classList.add('show-act');
+      return;
+    }
+    btn.closest('[data-mid]').classList.remove('show-act');
     const id = btn.closest('[data-mid]').dataset.mid;
     const m = CH.messages.find(x => x.id === id); if (!m) return;
     const act = btn.dataset.act;
