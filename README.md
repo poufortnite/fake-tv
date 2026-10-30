@@ -28,3 +28,5 @@ Toca **Instalar** arriba a la derecha y elige Android, iPhone u ordenador: te sa
 Todo se guarda en el navegador del dispositivo que uses: no se sube a ningún sitio y nadie más puede verlo.
 
 Por eso, si borras los datos del navegador o cambias de móvil, se pierde. Usa **Guardar copia** de vez en cuando para descargar un archivo con todo, y **Cargar copia** para recuperarlo o pasarlo a otro dispositivo.
+
+La página usa [GoatCounter](https://www.goatcounter.com/) solo para contar visitas de forma anónima, sin cookies ni datos personales.
