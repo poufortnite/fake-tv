@@ -878,7 +878,7 @@ function channelSettings(tab = 'general', onChange = null) {
             ${CH.banner ? '<button class="btn ghost sm" id="delBanner">Quitar</button>' : ''}
           </div>
         </div>
-        <p class="hint" style="margin:-6px 0 12px">Tamaño recomendado del banner: 1200 × 480.</p>
+        <p class="hint" style="margin:-6px 0 12px">Tamaño recomendado del banner: 1200 × 480. En el móvil se ve la franja del centro, como en Twitch.</p>
         <div class="settings-general">
           <div class="avatar-edit">
             <button class="avatar-btn big" id="setAvatar" title="Cambiar foto">${avatarHTML(owner, 72)}</button>
@@ -896,6 +896,7 @@ function channelSettings(tab = 'general', onChange = null) {
               <label class="field"><span>Espectadores (si está en directo)</span><input id="setViewers" type="number" min="0" value="${CH.viewers || 0}"></label>
             </div>
             <label class="check"><input type="checkbox" id="setLive"${CH.live ? ' checked' : ''}><span>Está en directo ahora</span></label>
+            <label class="field"><span>Último directo <small>· sale cuando está desconectado</small></span><input id="setLastLive" value="${esc(CH.lastLive || '')}" placeholder="el 21 de octubre"></label>
             <label class="field"><span>Título del directo</span><input id="setTitle" value="${esc(CH.title)}" placeholder="Título del directo"></label>
             <label class="field"><span>Categoría</span><input id="setCat" value="${esc(CH.category)}" placeholder="Just Chatting"></label>
             <div class="field"><span>Miniatura del directo</span>
@@ -918,6 +919,7 @@ function channelSettings(tab = 'general', onChange = null) {
       $('#setFollowers', body).onchange = e => { CH.followers = Number(e.target.value) || 0; refreshAll(); };
       $('#setViewers', body).onchange = e => { CH.viewers = Number(e.target.value) || 0; refreshAll(); };
       $('#setLive', body).onchange = e => { CH.live = e.target.checked; refreshAll(); };
+      $('#setLastLive', body).onchange = e => { CH.lastLive = e.target.value.trim(); refreshAll(); };
       $('#setTitle', body).onchange = e => { CH.title = e.target.value; refreshAll(); };
       $('#setCat', body).onchange = e => { CH.category = e.target.value; refreshAll(); };
       $('#setThumb', body).onclick = async () => { const i = await pickImage(640); if (i) { CH.thumb = i; refreshAll(); again(); } };
@@ -1153,6 +1155,32 @@ function videoForm(ch, v, after) {
   });
 }
 
+/* Iconos de redes (se eligen por el nombre o el enlace) */
+const SOCIAL_ICONS = {
+  twitter: '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M22 5.8c-.7.3-1.5.5-2.3.6.8-.5 1.5-1.3 1.8-2.2-.8.5-1.7.8-2.6 1a4.1 4.1 0 00-7 3.7A11.6 11.6 0 013.4 4.6a4.1 4.1 0 001.3 5.5c-.7 0-1.3-.2-1.9-.5 0 2 1.4 3.7 3.3 4.1-.6.2-1.2.2-1.9.1.5 1.6 2 2.8 3.8 2.9A8.3 8.3 0 012 18.4 11.6 11.6 0 008.3 20c7.5 0 11.7-6.3 11.7-11.7v-.5c.8-.6 1.5-1.3 2-2z"/></svg>',
+  x: '<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M17.8 3h3.1l-6.8 7.7L22 21h-6.2l-4.9-6.4L5.3 21H2.2l7.2-8.3L1.8 3h6.4l4.4 5.8L17.8 3zm-1.1 16.2h1.7L7.4 4.7H5.6l11.1 14.5z"/></svg>',
+  youtube: '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M21.6 7.2a2.5 2.5 0 00-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.5 2.5 0 002.4 7.2 26 26 0 002 12a26 26 0 00.4 4.8 2.5 2.5 0 001.8 1.8c1.6.4 7.8.4 7.8.4s6.2 0 7.8-.4a2.5 2.5 0 001.8-1.8A26 26 0 0022 12a26 26 0 00-.4-4.8zM10 15V9l5.2 3L10 15z"/></svg>',
+  instagram: '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M7 2h10a5 5 0 015 5v10a5 5 0 01-5 5H7a5 5 0 01-5-5V7a5 5 0 015-5zm0 2a3 3 0 00-3 3v10a3 3 0 003 3h10a3 3 0 003-3V7a3 3 0 00-3-3H7zm5 3.5a4.5 4.5 0 110 9 4.5 4.5 0 010-9zm0 2a2.5 2.5 0 100 5 2.5 2.5 0 000-5zM17.3 5.4a1.2 1.2 0 110 2.4 1.2 1.2 0 010-2.4z"/></svg>',
+  tiktok: '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M16.6 3c.4 2 1.9 3.5 3.9 3.8v3a7 7 0 01-3.9-1.2v6.6A6.2 6.2 0 1110.4 9v3.1a3.1 3.1 0 102.2 3V3h4z"/></svg>',
+  link: '<svg viewBox="0 0 20 20" width="20" height="20"><path fill="currentColor" d="M6 8h2V6H6a4 4 0 000 8h2v-2H6a2 2 0 010-4zm8-2h-2v2h2a2 2 0 010 4h-2v2h2a4 4 0 000-8zm-1 5V9H7v2h6z"/></svg>'
+};
+function socialIcon(l) {
+  const t = (l.label + ' ' + l.url).toLowerCase();
+  if (/twitter/.test(t)) return SOCIAL_ICONS.twitter;
+  if (/youtu/.test(t)) return SOCIAL_ICONS.youtube;
+  if (/insta/.test(t)) return SOCIAL_ICONS.instagram;
+  if (/tiktok/.test(t)) return SOCIAL_ICONS.tiktok;
+  if (/(^|\W)x(\.com)?(\W|$)/.test(t)) return SOCIAL_ICONS.x;
+  return SOCIAL_ICONS.link;
+}
+const linksHTML = ch => ch.links.map(l => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${socialIcon(l)}<span>${esc(l.label)}</span></a>`).join('');
+const HEART = '<svg viewBox="0 0 20 20" width="20" height="20"><path fill="currentColor" fill-rule="evenodd" d="M9.17 4.33A4.5 4.5 0 002 8.06c0 1.2.47 2.34 1.32 3.18L10 18l6.68-6.76A4.5 4.5 0 0018 8.06a4.5 4.5 0 00-7.17-3.73L10 5l-.83-.67z"/></svg>';
+const BELL = '<svg viewBox="0 0 20 20" width="20" height="20"><path fill="currentColor" d="M10 2a5 5 0 00-5 5v3.6L3.3 14h13.4L15 10.6V7a5 5 0 00-5-5zm-2 14a2 2 0 004 0H8z"/></svg>';
+const CHEVRON = '<svg viewBox="0 0 20 20" width="14" height="14"><path fill="currentColor" d="M5 7.5L10 12.5 15 7.5z"/></svg>';
+const EYE = '<svg viewBox="0 0 20 20" width="18" height="18"><path fill="currentColor" d="M10 4C5 4 2 10 2 10s3 6 8 6 8-6 8-6-3-6-8-6zm0 10a4 4 0 110-8 4 4 0 010 8zm0-2a2 2 0 100-4 2 2 0 000 4z"/></svg>';
+const DOTS = '<svg viewBox="0 0 20 20" width="22" height="22"><path fill="currentColor" d="M4 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm6 0a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm6 0a1.5 1.5 0 110 3 1.5 1.5 0 010-3z"/></svg>';
+const TYPE_PILL = { past: 'Emisión anterior', highlight: 'Destacados', upload: 'Subida', clip: 'Clip' };
+
 function viewProfile(id) {
   setNav('home');
   CH = DB.channel(id);
@@ -1162,13 +1190,12 @@ function viewProfile(id) {
   const tab = profileTab;
   const banner = ch.banner ? `background-image:url('${ch.banner}')` : `background:linear-gradient(120deg, ${readableColor(o.color)}55, #18181b 60%, #0e0e10)`;
   const thumb = ch.thumb ? `background-image:url('${ch.thumb}')` : banner;
+  const viewers = Number(ch.viewers || 0).toLocaleString('es-ES');
 
-  const top = ch.live ? `
+  /* ---------- Cabecera de ordenador ---------- */
+  const deskTop = ch.live ? `
       <div class="prof-player" style="${thumb}">
-        <div class="prof-player-top">
-          ${ch.live ? `<span class="live-pill">EN DIRECTO</span>
-          <span class="viewers-pill">${Number(ch.viewers || 0).toLocaleString('es-ES')} espectadores</span>` : '<span class="viewers-pill">Desconectado</span>'}
-        </div>
+        <div class="prof-player-top"><span class="live-pill">EN DIRECTO</span><span class="viewers-pill">${viewers} espectadores</span></div>
         <div class="prof-player-title"><b>${esc(ch.title || 'Sin título')}</b>${ch.category ? `<span>${esc(ch.category)}</span>` : ''}</div>
       </div>` : `
       <div class="prof-off">
@@ -1176,63 +1203,119 @@ function viewProfile(id) {
         <div class="offline-card">
           <span class="offline-pill">DESCONECTADO</span>
           <b>${esc(o.name)} está desconectado.</b>
-          ${ch.videos.length ? `<span class="muted-p small">Último vídeo: ${esc(ch.videos[0].title || '')}</span>` : ''}
+          ${ch.lastLive ? `<span class="muted-p small">Último directo ${esc(ch.lastLive)}</span>` : ''}
         </div>
       </div>`;
-
-  const aboutHTML = `
-    <div class="about">
-      <h3>Acerca de ${esc(o.name)}</h3>
-      <p class="about-f"><b>${fmtCompact(ch.followers)}</b> seguidores</p>
-      ${ch.bio ? `<p class="about-bio">${esc(ch.bio).replace(/\n/g, '<br>')}</p>` : '<p class="muted-p">Este canal todavía no tiene biografía.</p>'}
-      ${ch.links.length ? `<div class="about-links">${ch.links.map(l =>
-        `<a href="${esc(l.url)}" target="_blank" rel="noopener">${LINK_SVG}<span>${esc(l.label)}</span></a>`).join('')}</div>` : ''}
-    </div>`;
-
-  const vids = videoFilter === 'all' ? ch.videos : ch.videos.filter(v => v.type === videoFilter);
-  const addCard = `<button class="vid-add" id="addVideo"><span>+</span>Añadir vídeo</button>`;
-
-  let body = '';
-  if (tab === 'home') {
-    body = aboutHTML + `
-      <div class="prof-sec-head"><h3>Vídeos recientes</h3>${ch.videos.length > 4 ? '<button class="link-btn" data-ptab="videos">Ver todo</button>' : ''}</div>
-      <div class="vid-grid">${ch.videos.slice(0, 4).map(v => videoCardHTML(ch, v, true)).join('')}${addCard}</div>`;
-  } else if (tab === 'about') {
-    body = aboutHTML;
-  } else if (tab === 'videos') {
-    body = `
-      <div class="chips">${[['all', 'Todos'], ...Object.entries(VIDEO_TYPES)].map(([k, l]) =>
-        `<button class="chip-btn${videoFilter === k ? ' active' : ''}" data-vfilter="${k}">${l}</button>`).join('')}</div>
-      <div class="vid-grid">${vids.map(v => videoCardHTML(ch, v, true)).join('')}${addCard}</div>
-      ${vids.length ? '' : '<p class="muted-p">No hay vídeos de este tipo todavía.</p>'}`;
-  }
-
-  view().innerHTML = `
-  <div class="prof-tools">
-    <a href="#/" class="btn ghost sm">← Canales</a>
-    <span class="grow"></span>
-    <button class="btn ghost sm live-toggle${ch.live ? ' on' : ''}" id="liveToggle" title="Cambiar entre en directo y desconectado">${ch.live ? '🔴 En directo' : '⚫ Desconectado'}</button>
-    <button class="btn ghost sm" id="profEdit">✏️ Editar perfil</button>
-    <button class="btn ghost sm" id="profPng">🖼️ Descargar PNG</button>
-    <button class="btn capture sm" id="profCapture">Modo captura</button>
-  </div>
-  <div class="prof" id="profPage">
-    ${top}
-    <div class="prof-head">
+  const deskHead = `
+    <div class="prof-head desk-only">
       <div class="prof-avatar${ch.live ? ' live' : ''}">${avatarHTML(o, 64)}${ch.live ? '<span class="live-tag">EN DIRECTO</span>' : ''}</div>
       <div class="prof-id">
         <h1>${esc(o.name)}${o.verified ? VERIFIED_SVG : ''}</h1>
         <span>${fmtCompact(ch.followers)} seguidores</span>
       </div>
       <div class="prof-actions">
-        <button class="tw-btn-follow${ch.following ? ' on' : ''}" id="followBtn" title="${ch.following ? 'Dejar de seguir' : 'Seguir'}"><svg viewBox="0 0 20 20" width="20" height="20"><path fill="currentColor" fill-rule="evenodd" d="M9.17 4.33A4.5 4.5 0 002 8.06c0 1.2.47 2.34 1.32 3.18L10 18l6.68-6.76A4.5 4.5 0 0018 8.06a4.5 4.5 0 00-7.17-3.73L10 5l-.83-.67z"/></svg>${ch.following ? '' : 'Seguir'}</button>
-        <button class="tw-btn-sub${ch.subscribed ? ' on' : ''}" id="subBtn">${ch.subscribed ? STAR_FILLED + 'Suscrito' : ICONS.star + 'Suscribirse'}</button>
+        <button class="tw-btn-follow${ch.following ? ' on' : ''}" data-act="follow" title="${ch.following ? 'Dejar de seguir' : 'Seguir'}">${HEART}${ch.following ? '' : 'Seguir'}</button>
+        <button class="tw-btn-sub${ch.subscribed ? ' on' : ''}" data-act="sub">${ch.subscribed ? STAR_FILLED + 'Suscrito' : ICONS.star + 'Suscribirse'}</button>
       </div>
-    </div>
+    </div>`;
+
+  /* ---------- Cabecera del móvil (como la app de Twitch) ---------- */
+  const mobHead = `
+    <div class="pm mob-only-block">
+      ${ch.live ? `<div class="pm-player" style="${thumb}"><span class="live-pill">EN DIRECTO</span><span class="viewers-pill">${viewers}</span></div>`
+                : `<div class="pm-banner" style="${banner}"></div>`}
+      <button class="pm-dots" data-act="menu" aria-label="Opciones">${DOTS}</button>
+      <div class="pm-id${ch.live ? ' is-live' : ''}">
+        <div class="pm-av${ch.live ? ' live' : ''}">${avatarHTML(o, 92)}</div>
+        <div class="pm-name">
+          <h1>${esc(o.name)}${o.verified ? VERIFIED_SVG : ''}</h1>
+          <span>${ch.live ? `<b class="pm-live">EN DIRECTO</b> · ${viewers} espectadores` : (ch.lastLive ? `Último directo ${esc(ch.lastLive)}` : 'Desconectado')}</span>
+        </div>
+      </div>
+      ${ch.live && ch.title ? `<p class="pm-title">${esc(ch.title)}${ch.category ? ` <span>${esc(ch.category)}</span>` : ''}</p>` : ''}
+      ${ch.bio ? `<p class="pm-bio">${esc(ch.bio).replace(/\n/g, '<br>')}</p>` : ''}
+      <p class="pm-f"><b>${fmtCompact(ch.followers)}</b> seguidores</p>
+      ${ch.links.length ? `<div class="pm-links">${linksHTML(ch)}</div>` : ''}
+      <div class="pm-btns">
+        ${ch.following
+          ? `<button class="pm-btn gray" data-act="follow" title="Dejar de seguir">${HEART}${CHEVRON}</button><button class="pm-btn gray" tabindex="-1">${BELL}${CHEVRON}</button>`
+          : `<button class="pm-btn purple grow2" data-act="follow">${HEART}Seguir</button>`}
+        <button class="pm-btn purple grow2" data-act="sub">${ch.subscribed ? ICONS.gift + 'Regalar una sub' : ICONS.star + 'Suscribirse'}</button>
+      </div>
+    </div>`;
+
+  /* ---------- Contenido de las pestañas ---------- */
+  const aboutHTML = `
+    <div class="about">
+      <h3>Acerca de ${esc(o.name)}</h3>
+      <p class="about-f"><b>${fmtCompact(ch.followers)}</b> seguidores</p>
+      ${ch.bio ? `<p class="about-bio">${esc(ch.bio).replace(/\n/g, '<br>')}</p>` : '<p class="muted-p">Este canal todavía no tiene biografía.</p>'}
+      ${ch.links.length ? `<div class="about-links">${linksHTML(ch)}</div>` : ''}
+    </div>`;
+  const filter = tab === 'clips' ? 'clip' : videoFilter;
+  const vids = filter === 'all' ? ch.videos : ch.videos.filter(v => v.type === filter);
+  const addCard = `<button class="vid-add" data-act="add"><span>+</span>Añadir vídeo</button>`;
+  const grid = list => `<div class="vid-grid">${list.map(v => videoCardHTML(ch, v, true)).join('')}${addCard}</div>`;
+
+  // Inicio en el móvil: destacado grande + fila deslizable
+  const feat = ch.videos.find(v => v.type === 'highlight') || ch.videos[0];
+  const clips = ch.videos.filter(v => v.type === 'clip');
+  const rest = ch.videos.filter(v => v !== feat && v.type !== 'clip');
+  const mobHome = `
+    <div class="mob-only-block">
+      ${feat ? `
+        <div class="pm-feat" data-vid="${feat.id}">
+          <div class="vid-thumb" style="${feat.thumb ? `background-image:url('${feat.thumb}')` : banner}">
+            ${feat.duration ? `<span class="vid-pill tl">${esc(feat.duration)}</span>` : ''}
+          </div>
+          <span class="pm-feat-label">${feat.type === 'highlight' ? 'Destacado reciente' : 'Vídeo reciente'}</span>
+          <b class="pm-feat-title">${esc(feat.title || 'Sin título')}</b>
+          <span class="muted-p">${esc(o.name)}</span>
+          <span class="muted-p">${fmtCompact(feat.views)} visualizaciones${feat.date ? ' · ' + esc(feat.date) : ''}</span>
+        </div>` : ''}
+      <div class="pm-row">
+        ${clips.length ? `<button class="pm-card pm-clips" data-ptab="clips" style="--c:${readableColor(o.color)}">${avatarHTML(o, 44)}${avatarHTML(o, 44)}<b>Clips destacados</b><span class="pm-more">Mostrar todo</span></button>` : ''}
+        ${[...clips.slice(0, 1), ...rest].slice(0, 8).map(v => `
+          <div class="pm-card" data-vid="${v.id}" style="${v.thumb ? `background-image:url('${v.thumb}')` : banner}">
+            <span class="pm-type">${TYPE_PILL[v.type] || 'Vídeo'}</span>
+            <div class="pm-card-foot"><b>${esc(v.title || 'Sin título')}</b><span>${EYE}${fmtCompact(v.views)}</span></div>
+          </div>`).join('')}
+        <button class="pm-card pm-add" data-act="add"><span>+</span>Añadir vídeo</button>
+      </div>
+    </div>`;
+
+  let body = '';
+  if (tab === 'home') {
+    body = `<div class="desk-only-block">${aboutHTML}
+      <div class="prof-sec-head"><h3>Vídeos recientes</h3>${ch.videos.length > 4 ? '<button class="link-btn" data-ptab="videos">Ver todo</button>' : ''}</div>
+      ${grid(ch.videos.slice(0, 4))}</div>${mobHome}`;
+  } else if (tab === 'about') {
+    body = aboutHTML;
+  } else if (tab === 'clips') {
+    body = grid(vids) + (vids.length ? '' : '<p class="muted-p">Todavía no hay clips. Añade un vídeo de tipo “Clip”.</p>');
+  } else if (tab === 'videos') {
+    body = `
+      <div class="chips">${[['all', 'Todos'], ...Object.entries(VIDEO_TYPES)].map(([k, l]) =>
+        `<button class="chip-btn${videoFilter === k ? ' active' : ''}" data-vfilter="${k}">${l}</button>`).join('')}</div>
+      ${grid(vids)}${vids.length ? '' : '<p class="muted-p">No hay vídeos de este tipo todavía.</p>'}`;
+  }
+  const tabBtn = (k, l) => `<button data-ptab="${k}" class="${tab === k ? 'active' : ''}">${l}</button>`;
+
+  view().innerHTML = `
+  <div class="prof-tools desk-only-flex">
+    <a href="#/" class="btn ghost sm">← Canales</a>
+    <span class="grow"></span>
+    <button class="btn ghost sm live-toggle${ch.live ? ' on' : ''}" data-act="live" title="Cambiar entre en directo y desconectado">${ch.live ? '🔴 En directo' : '⚫ Desconectado'}</button>
+    <button class="btn ghost sm" data-act="edit">✏️ Editar perfil</button>
+    <button class="btn ghost sm" data-act="png">🖼️ Descargar PNG</button>
+    <button class="btn capture sm" data-act="capture">Modo captura</button>
+  </div>
+  <div class="prof" id="profPage">
+    <div class="desk-only-block">${deskTop}</div>
+    ${mobHead}
+    ${deskHead}
     <nav class="prof-tabs">
-      <button data-ptab="home" class="${tab === 'home' ? 'active' : ''}">Inicio</button>
-      <button data-ptab="about" class="${tab === 'about' ? 'active' : ''}">Acerca de</button>
-      <button data-ptab="videos" class="${tab === 'videos' ? 'active' : ''}">Vídeos</button>
+      ${tabBtn('home', 'Inicio')}${tabBtn('about', 'Acerca de')}${tabBtn('clips', 'Clips')}${tabBtn('videos', 'Vídeos')}
       <a href="#/c/${ch.id}" class="prof-chat-tab">Chat</a>
     </nav>
     <div class="prof-body">${body}</div>
@@ -1240,20 +1323,45 @@ function viewProfile(id) {
   <button class="exit-capture" id="exitCapture" title="Salir (Esc)">✕ Salir del modo captura</button>`;
 
   const rerender = () => viewProfile(id);
-  $$('[data-ptab]').forEach(b => b.onclick = () => { profileTab = b.dataset.ptab; rerender(); });
-  $$('[data-vfilter]').forEach(b => b.onclick = () => { videoFilter = b.dataset.vfilter; rerender(); });
-  $('#addVideo')?.addEventListener('click', () => videoForm(ch, null, rerender));
-  $('#profPage').addEventListener('click', e => {
-    const c = e.target.closest('[data-vid]'); if (!c) return;
-    videoForm(ch, ch.videos.find(v => v.id === c.dataset.vid), rerender);
-  });
-  $('#profEdit').onclick = () => channelSettings('general', rerender);
-  $('#liveToggle').onclick = () => { ch.live = !ch.live; DB.save(); rerender(); };
-  $('#followBtn').onclick = () => { ch.following = !ch.following; DB.save(); rerender(); };
-  $('#subBtn').onclick = () => { ch.subscribed = !ch.subscribed; DB.save(); rerender(); };
-  $('#profPng').onclick = () => downloadPNG('#profPage', o.name + '_perfil');
-  $('#profCapture').onclick = () => document.body.classList.add('capture');
-  $('#exitCapture').onclick = exitCapture;
+  const ACTIONS = {
+    follow() { ch.following = !ch.following; DB.save(); rerender(); },
+    sub() { ch.subscribed = !ch.subscribed; DB.save(); rerender(); },
+    live() { ch.live = !ch.live; DB.save(); rerender(); },
+    edit() { channelSettings('general', rerender); },
+    png() { downloadPNG('#profPage', o.name + '_perfil'); },
+    capture() { document.body.classList.add('capture'); },
+    add() { videoForm(ch, null, rerender); },
+    menu() {
+      openModal({
+        title: o.name,
+        body: `<div class="stack">
+          <button class="btn ghost wide" data-m="edit">✏️ Editar perfil</button>
+          <button class="btn ghost wide" data-m="live">${ch.live ? '⚫ Poner desconectado' : '🔴 Poner en directo'}</button>
+          <button class="btn ghost wide" data-m="add">➕ Añadir vídeo</button>
+          <button class="btn ghost wide" data-m="chat">💬 Abrir chat</button>
+          <button class="btn ghost wide" data-m="png">🖼️ Descargar PNG</button>
+          <button class="btn capture wide" data-m="capture">Modo captura</button></div>`,
+        onMount(el, close) {
+          el.querySelector('.stack').onclick = e => {
+            const b = e.target.closest('[data-m]'); if (!b) return;
+            close();
+            if (b.dataset.m === 'chat') location.hash = '#/c/' + ch.id; else ACTIONS[b.dataset.m]();
+          };
+        }
+      });
+    }
+  };
+  view().onclick = e => {
+    const t = e.target.closest('[data-ptab]');
+    if (t) { profileTab = t.dataset.ptab; return rerender(); }
+    const f = e.target.closest('[data-vfilter]');
+    if (f) { videoFilter = f.dataset.vfilter; return rerender(); }
+    const a = e.target.closest('[data-act]');
+    if (a && ACTIONS[a.dataset.act]) return ACTIONS[a.dataset.act]();
+    const c = e.target.closest('[data-vid]');
+    if (c) videoForm(ch, ch.videos.find(v => v.id === c.dataset.vid), rerender);
+  };
+  $('#exitCapture').onclick = e => { e.stopPropagation(); exitCapture(); };
 }
 
 /* =====================================================
@@ -1289,6 +1397,7 @@ function importData() {
 ===================================================== */
 function route() {
   exitCapture();
+  view().onclick = null;
   document.removeEventListener('mousedown', closeEmotePop);
   const parts = (location.hash.slice(1) || '/').split('/').filter(Boolean);
   if (parts[0] === 'c' && parts[1]) return viewChannel(parts[1]);

@@ -45,7 +45,7 @@ button { font-family: inherit; }
 .logo b { color: var(--purple-hi); }
 .nav { display: flex; gap: 4px; }
 .nav-link svg { display: none; }
-.mob-only { display: none !important; }
+.mob-only, .mob-only-block { display: none !important; }
 .stack { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .nav-link {
   color: var(--text); text-decoration: none; font-weight: 600; font-size: 15px;
@@ -614,19 +614,14 @@ body.capture .prof { margin-top: 0; }
   .badge-row .grow { flex: 1 1 120px; }
   .img-field { flex-direction: column; align-items: flex-start; }
 
-  /* Perfil */
-  .prof { margin-top: 8px; }
-  .prof-player { aspect-ratio: 16 / 9; max-height: none; }
-  .offline-card { position: static; max-width: none; margin: 0; border-radius: 0; background: var(--bg-2); box-shadow: none; padding: 10px 14px; }
-  .prof-head { flex-wrap: wrap; padding: 12px 14px 6px; gap: 12px; }
-  .prof-id h1 { font-size: 19px; }
-  .prof-actions { margin-left: 0; width: 100%; }
-  .prof-actions button { flex: 1; justify-content: center; height: 34px; }
-  .tw-btn-follow.on { flex: 0 0 44px; }
-  .prof-tabs { padding: 0 8px; overflow-x: auto; scrollbar-width: none; }
+  /* Perfil (estilo app de Twitch) */
+  .desk-only-block, .desk-only-flex { display: none !important; }
+  .mob-only-block { display: block !important; }
+  .prof { margin-top: 0; padding-bottom: 20px; }
+  .prof-tabs { padding: 0 6px; overflow-x: auto; scrollbar-width: none; gap: 2px; border-bottom: none; }
+  .prof-tabs::-webkit-scrollbar { display: none; }
+  .prof-tabs button, .prof-tabs a { font-size: 15px; padding: 12px 10px 8px; white-space: nowrap; }
   .prof-body { padding: 14px 14px 0; }
-  .prof-tools { padding: 8px 10px 0; gap: 6px; }
-  .prof-tools .btn { flex: 1 1 auto; }
   .about { padding: 16px; }
   .vid-grid { grid-template-columns: 1fr; }
   .chat-pick-row { padding: 10px; gap: 10px; }
@@ -644,3 +639,73 @@ body.capture .prof { margin-top: 0; }
   .logo span { display: none; }
   .grid2 { grid-template-columns: 1fr; }
 }
+
+/* ---------- Perfil en el móvil (como la app de Twitch) ---------- */
+.pm { position: relative; padding-bottom: 6px; }
+.pm-banner { width: 100%; aspect-ratio: 4 / 1; background-size: cover; background-position: center; }
+.pm-player { width: 100%; aspect-ratio: 16 / 9; background-size: cover; background-position: center; position: relative; background-color: #000; }
+.pm-player .live-pill { top: 10px; left: 10px; }
+.pm-player .viewers-pill { bottom: auto; top: 10px; left: 102px; }
+.pm-dots {
+  position: absolute; top: 10px; right: 10px; width: 40px; height: 40px; border-radius: 50%; border: none;
+  background: rgba(14,14,16,.55); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.pm-id { display: flex; align-items: center; gap: 14px; padding: 0 16px; margin-top: -30px; position: relative; }
+.pm-id.is-live { margin-top: 12px; }
+.pm-av { border-radius: 50%; background: var(--bg); padding: 3px; flex-shrink: 0; }
+.pm-av.live { background: #eb0400; }
+.pm-av .avatar { border: 3px solid var(--bg); }
+.pm-name { display: flex; flex-direction: column; min-width: 0; padding-top: 26px; }
+.pm-id.is-live .pm-name { padding-top: 0; }
+.pm-name h1 { margin: 0; font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 6px; line-height: 1.2; word-break: break-word; }
+.pm-name h1 .verified-ico { width: 20px; height: 20px; }
+.pm-name > span { color: var(--muted); font-size: 14px; margin-top: 2px; }
+.pm-live { color: #ff5c5c; font-weight: 700; }
+.pm-title { margin: 12px 16px 0; font-weight: 600; font-size: 15px; }
+.pm-title span { color: var(--purple-soft); font-weight: 500; }
+.pm-bio { margin: 14px 16px 0; color: var(--muted); font-size: 15px; line-height: 1.45; }
+.pm-f { margin: 12px 16px 0; color: var(--text); font-size: 15px; }
+.pm-f b { font-weight: 700; }
+.pm-links { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 14px 16px 0; }
+.pm-links a, .about-links a { display: flex; align-items: center; gap: 6px; color: var(--text); text-decoration: none; font-size: 15px; }
+.pm-links a svg, .about-links a svg { color: var(--purple-hi); flex-shrink: 0; }
+.about-links a { color: var(--muted); font-size: 13px; font-weight: 600; }
+.pm-btns { display: flex; gap: 8px; margin: 16px 16px 4px; }
+.pm-btn {
+  height: 40px; border: none; border-radius: 6px; font-family: inherit; font-weight: 700; font-size: 15px; color: #fff;
+  display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; flex: 1; padding: 0 10px; white-space: nowrap;
+}
+.pm-btn.gray { background: #3a3a40; flex: 0 1 25%; gap: 2px; }
+.pm-btn.purple { background: var(--purple); }
+.pm-btn.grow2 { flex: 2; }
+.pm-btn svg { width: 20px; height: 20px; }
+.pm-btn.gray svg + svg { width: 14px; height: 14px; }
+body.capture .pm-dots { display: none; }
+
+.pm-feat { margin-bottom: 18px; cursor: pointer; display: flex; flex-direction: column; }
+.pm-feat .vid-thumb { border-radius: 4px; margin-bottom: 10px; }
+.pm-feat-label { color: var(--purple-soft); font-size: 15px; font-weight: 600; }
+.pm-feat-title { font-size: 18px; margin: 2px 0 4px; }
+.pm-feat .muted-p { margin: 0; font-size: 14px; }
+.pm-row { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -14px; padding: 18px 14px 4px; scrollbar-width: none; }
+.pm-row::-webkit-scrollbar { display: none; }
+.pm-card {
+  flex: 0 0 42%; aspect-ratio: 3 / 4.2; border-radius: 6px; scroll-snap-align: start; position: relative; overflow: visible;
+  background-color: #000; background-size: cover; background-position: center; cursor: pointer; border: none; font-family: inherit; color: #fff; text-align: left; padding: 0;
+}
+.pm-card::after { content: ''; position: absolute; inset: 0; border-radius: 6px; background: linear-gradient(180deg, transparent 45%, rgba(0,0,0,.75)); pointer-events: none; }
+.pm-type { position: absolute; top: 10px; left: 10px; z-index: 1; background: var(--purple); color: #fff; font-size: 13px; padding: 1px 7px; border-radius: 4px; }
+.pm-card-foot { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 1; display: flex; flex-direction: column; gap: 4px; }
+.pm-card-foot b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; }
+.pm-card-foot span { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.pm-clips { background: var(--c, var(--purple)); display: flex; flex-direction: column; padding: 0 14px 14px; }
+.pm-clips::after { display: none; }
+.pm-clips .avatar { position: absolute; top: -18px; border: 2px solid rgba(0,0,0,.25); }
+.pm-clips .avatar:first-child { left: 14px; }
+.pm-clips .avatar:nth-child(2) { left: 64px; }
+.pm-clips b { color: #111; font-size: 18px; margin-top: 46%; line-height: 1.15; }
+.pm-more { margin-top: auto; background: #fff; color: #111; font-weight: 700; font-size: 15px; text-align: center; border-radius: 6px; padding: 8px; }
+.pm-add { background: none; border: 2px dashed var(--line-2); color: var(--muted); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-weight: 600; }
+.pm-add::after { display: none; }
+.pm-add span { font-size: 28px; }
+body.capture .pm-add, body.shooting .pm-add { display: none; }
