@@ -1257,44 +1257,30 @@ function viewProfile(id) {
   const addCard = `<button class="vid-add" data-act="add"><span>+</span>Añadir vídeo</button>`;
   const grid = (list, cls = '') => `<div class="vid-grid ${cls}">${list.map(v => videoCardHTML(ch, v, true)).join('')}${addCard}</div>`;
 
-  // Inicio en el móvil: destacado grande, fila de clips (en vertical) y fila de vídeos (en horizontal)
+  // Inicio en el móvil: destacado grande + fila deslizable
+  const feat = ch.videos.find(v => v.type === 'highlight') || ch.videos[0];
   const clips = ch.videos.filter(v => v.type === 'clip');
-  const longs = ch.videos.filter(v => v.type !== 'clip');
-  const feat = longs.find(v => v.type === 'highlight') || longs[0];
-  const restLong = longs.filter(v => v !== feat);
-  const thumbOf = v => v.thumb ? `background-image:url('${v.thumb}')` : banner;
+  const rest = ch.videos.filter(v => v !== feat && v.type !== 'clip');
   const mobHome = `
     <div class="mob-only-block">
       ${feat ? `
         <div class="pm-feat" data-vid="${feat.id}">
-          <div class="vid-thumb" style="${thumbOf(feat)}">${feat.duration ? `<span class="vid-pill tl">${esc(feat.duration)}</span>` : ''}</div>
-          <span class="pm-feat-label">${feat.type === 'highlight' ? 'Destacado reciente' : feat.type === 'past' ? 'Emisión anterior reciente' : 'Vídeo reciente'}</span>
+          <div class="vid-thumb" style="${feat.thumb ? `background-image:url('${feat.thumb}')` : banner}">
+            ${feat.duration ? `<span class="vid-pill tl">${esc(feat.duration)}</span>` : ''}
+          </div>
+          <span class="pm-feat-label">${feat.type === 'highlight' ? 'Destacado reciente' : 'Vídeo reciente'}</span>
           <b class="pm-feat-title">${esc(feat.title || 'Sin título')}</b>
           <span class="muted-p">${esc(o.name)}</span>
           <span class="muted-p">${fmtCompact(feat.views)} visualizaciones${feat.date ? ' · ' + esc(feat.date) : ''}</span>
         </div>` : ''}
-      <h3 class="pm-sec">Clips</h3>
       <div class="pm-row">
         ${clips.length ? `<button class="pm-card pm-clips" data-ptab="clips" style="--c:${readableColor(o.color)}">${avatarHTML(o, 44)}${avatarHTML(o, 44)}<b>Clips destacados</b><span class="pm-more">Mostrar todo</span></button>` : ''}
-        ${clips.slice(0, 8).map(v => `
-          <div class="pm-card" data-vid="${v.id}" style="${thumbOf(v)}">
-            <span class="pm-type">Destacados</span>
+        ${[...clips.slice(0, 1), ...rest].slice(0, 8).map(v => `
+          <div class="pm-card" data-vid="${v.id}" style="${v.thumb ? `background-image:url('${v.thumb}')` : banner}">
+            <span class="pm-type">${TYPE_PILL[v.type] || 'Vídeo'}</span>
             <div class="pm-card-foot"><b>${esc(v.title || 'Sin título')}</b><span>${EYE}${fmtCompact(v.views)}</span></div>
           </div>`).join('')}
-        <button class="pm-card pm-add" data-act="addclip"><span>+</span>Añadir clip</button>
-      </div>
-      <h3 class="pm-sec">Vídeos</h3>
-      <div class="pm-row">
-        ${restLong.slice(0, 8).map(v => `
-          <div class="pm-wide" data-vid="${v.id}">
-            <div class="vid-thumb" style="${thumbOf(v)}">
-              ${v.duration ? `<span class="vid-pill tl">${esc(v.duration)}</span>` : ''}
-              <span class="vid-pill bl">${esc(TYPE_PILL[v.type] || 'Vídeo')}</span>
-            </div>
-            <b>${esc(v.title || 'Sin título')}</b>
-            <span class="muted-p">${fmtCompact(v.views)} visualizaciones${v.date ? ' · ' + esc(v.date) : ''}</span>
-          </div>`).join('')}
-        <button class="pm-wide pm-add-wide" data-act="add"><span>+</span>Añadir vídeo</button>
+        <button class="pm-card pm-add" data-act="add"><span>+</span>Añadir vídeo</button>
       </div>
     </div>`;
 
@@ -1306,7 +1292,7 @@ function viewProfile(id) {
   } else if (tab === 'about') {
     body = aboutHTML;
   } else if (tab === 'clips') {
-    body = grid(vids, 'clips-grid').replace('data-act="add"', 'data-act="addclip"').replace('Añadir vídeo', 'Añadir clip') + (vids.length ? '' : '<p class="muted-p">Todavía no hay clips.</p>');
+    body = grid(vids) + (vids.length ? '' : '<p class="muted-p">Todavía no hay clips. Añade un vídeo de tipo “Clip”.</p>');
   } else if (tab === 'videos') {
     body = `
       <div class="chips">${[['all', 'Todos'], ...Object.entries(VIDEO_TYPES)].map(([k, l]) =>

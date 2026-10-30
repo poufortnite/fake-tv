@@ -1,6 +1,6 @@
 /* fake.tv — service worker: permite usar la app sin conexión.
    Sube el número de VERSION cada vez que publiques cambios. */
-const VERSION = 'faketv-v7';
+const VERSION = 'faketv-v8';
 const RUNTIME = 'faketv-runtime';
 const APP_SHELL = [
   './', 'index.html', 'manifest.webmanifest',
