@@ -1618,6 +1618,115 @@ function setupInstall() {
   });
 }
 
+
+/* =====================================================
+   TUTORIAL (sale la primera vez; luego, con el botón "?" de arriba)
+===================================================== */
+const chip = t => `<span class="chip">${t}</span>`;
+const TUTO_KEY = 'faketv:tutorialVisto';
+
+const TUTORIAL = [
+  {
+    ico: '<img src="icons/icon.svg" alt="" width="40" height="40">',
+    title: '¡Hola! Esto es fake.tv',
+    text: `<p>Aquí te inventas canales de Twitch, con su perfil y su chat, para tus AU. Luego lo sacas como imagen.</p>
+           <p>Lo que hagas se queda <b>solo en este móvil u ordenador</b>. Se guarda solo, no hay que darle a ningún botón.</p>`
+  },
+  {
+    ico: '<img src="img/badges/broadcaster.png" alt="" width="34" height="34">',
+    title: '1. Crea un canal',
+    text: `<p>En ${chip('Canales')} toca ${chip('+ Crear canal')}. Al crear un canal también se crea su usuario: el streamer.</p>
+           <p>En su perfil, con ${chip('✏️ Editar perfil')} (en el móvil, con el ${chip('⋯')} del banner) le pones foto, banner, biografía, seguidores, redes y si está verificado.</p>
+           <p>También puedes ponerlo <b>en directo</b> o <b>desconectado</b> y añadirle vídeos: emisiones anteriores, destacados y clips.</p>`
+  },
+  {
+    ico: ICONS.users,
+    title: '2. Los usuarios del chat',
+    text: `<p>En ${chip('Usuarios')} creas a toda la gente que escribe en los chats. Puedes meter varios a la vez separándolos con comas: <i>usuario1, usuario2, usuario3</i>.</p>
+           <p>A cada uno le eliges el color del nombre, la foto y la insignia de verificado.</p>
+           <p>Los usuarios sirven para todos los canales. Si escribes en el chat con un nombre que no existe, se crea solo.</p>`
+  },
+  {
+    ico: '<img src="img/badges/mod.png" alt="" width="34" height="34">',
+    title: '3. Mods, VIPs y subs',
+    text: `<p>Cada canal tiene los suyos. Dentro del chat, toca ⚙️ → ${chip('Mods · VIPs · Subs')} y marca a quién le toca cada cosa (o añade varios a la vez por nombre).</p>
+           <p>Las insignias de sub se ponen en ${chip('Insignias de sub')}: sube tus imágenes o usa las que vienen. Con los <b>meses</b> se elige sola la insignia que toca al hacer una sub.</p>`
+  },
+  {
+    ico: '<svg viewBox="0 0 20 20" width="32" height="32"><path fill="currentColor" d="M3 3h14a1 1 0 011 1v10a1 1 0 01-1 1H8l-4 3v-3H3a1 1 0 01-1-1V4a1 1 0 011-1z"/></svg>',
+    title: '4. Escribe en el chat',
+    text: `<p>En ${chip('Chat')} eliges el canal.</p>
+           <p><b>En el móvil</b> escribes directamente en <i>Enviar un mensaje</i>, y con ${chip('Lo envía ▾')} eliges quién lo dice. El 🎲 elige a alguien al azar.</p>
+           <p><b>En el ordenador</b> se hace en la caja de la izquierda, en <i>Escribir como</i>.</p>
+           <p>Funcionan <b>/me</b>, las <b>@menciones</b> y los códigos de emotes. Con ${chip('📝 Pegar guion')} metes muchas líneas <i>usuario: mensaje</i> de golpe.</p>`
+  },
+  {
+    ico: ICONS.gift,
+    title: '5. Eventos y mensajes',
+    text: `<p>En ${chip('Eventos')} tienes subs, regalos de subs, raids, bits, anuncios, mensaje fijado y mensajes del sistema.</p>
+           <p>Para responder, fijar, editar o borrar un mensaje, pasa el ratón por encima (en el móvil, <b>tócalo</b>).</p>
+           <p>Al editar puedes cambiar la hora, marcarlo como destacado o primer mensaje, o dejarlo como <i>&lt;mensaje eliminado&gt;</i>.</p>`
+  },
+  {
+    ico: ICONS.smile,
+    title: '6. Emotes',
+    text: `<p>Los emotes de Twitch ya vienen: escribe por ejemplo <b>Kappa</b> o <b>LUL</b>, separados por espacios.</p>
+           <p>En ${chip('Emotes')} subes los tuyos (PNG, WEBP o GIF) y les pones un código, como <b>canalHola</b>. Con la carita 😊 del chat los eliges sin escribir.</p>`
+  },
+  {
+    ico: ICONS.pin,
+    title: '7. Sácalo como imagen',
+    text: `<p>${chip('Modo captura')} deja solo el chat (o el perfil) en pantalla para hacer la captura. Sales con <b>Esc</b> o con el botón de abajo.</p>
+           <p>${chip('🖼️ Descargar PNG')} te baja la imagen directamente.</p>
+           <p>En ${chip('Vista')} eliges el <b>punto de vista</b>: las menciones a esa persona salen resaltadas, como cuando te mencionan en Twitch.</p>`
+  },
+  {
+    ico: '<svg viewBox="0 0 20 20" width="34" height="34"><path fill="currentColor" d="M10 2 4 5v4c0 4 2.6 7.4 6 9 3.4-1.6 6-5 6-9V5l-6-3zm-1 11.4-3-3 1.4-1.4L9 10.6l3.6-3.6L14 8.4l-5 5z"/></svg>',
+    title: '8. Guarda una copia',
+    text: `<p>Como todo está en este dispositivo, de vez en cuando toca ${chip('Guardar copia')} (en el móvil, en el ${chip('⋮')} de arriba).</p>
+           <p>Ese archivo te sirve si cambias de móvil o se borra el navegador: lo cargas con ${chip('Cargar copia')}.</p>
+           <p>Para tenerla como una app más, toca ${chip('Instalar')} arriba. Y si quieres volver a ver esta guía, toca el <span class="chip chip-round">?</span> de arriba.</p>
+           <p class="muted-p small">fake.tv está hecha por <a href="https://github.com/poufortnite" target="_blank" rel="noopener">@poufortnite</a>.</p>`
+  }
+];
+
+function openTutorial(firstTime = false) {
+  try { localStorage.setItem(TUTO_KEY, '1'); } catch {}
+  let step = 0;
+  openModal({
+    title: 'Cómo se usa',
+    body: '<div class="tuto" id="tutoBody"></div>',
+    onMount(el, close) {
+      const body = $('#tutoBody', el);
+      const paint = () => {
+        const p = TUTORIAL[step];
+        const last = step === TUTORIAL.length - 1;
+        body.innerHTML = `
+          <div class="tuto-ico">${p.ico}</div>
+          <h3>${p.title}</h3>
+          <div class="tuto-text">${p.text}</div>
+          <div class="tuto-dots">${TUTORIAL.map((_, i) => `<button data-step="${i}" class="${i === step ? 'active' : ''}" aria-label="Paso ${i + 1}"></button>`).join('')}</div>
+          <div class="tuto-btns">
+            ${step > 0 ? '<button class="btn ghost" data-tuto="back">Anterior</button>' : '<button class="btn ghost" data-tuto="skip">Saltar</button>'}
+            <button class="btn primary" data-tuto="${last ? 'end' : 'next'}">${last ? (firstTime ? '¡A empezar!' : 'Entendido') : 'Siguiente'}</button>
+          </div>`;
+        el.querySelector('.modal').scrollTop = 0;
+      };
+      paint();
+      body.onclick = e => {
+        const d = e.target.closest('[data-step]');
+        if (d) { step = Number(d.dataset.step); return paint(); }
+        const b = e.target.closest('[data-tuto]'); if (!b) return;
+        if (b.dataset.tuto === 'next') { step++; return paint(); }
+        if (b.dataset.tuto === 'back') { step--; return paint(); }
+        close();
+        // La primera vez, si no hay canales, se abre directamente "Crear canal"
+        if (firstTime && !DB.data.channels.length) { location.hash = '#/'; setTimeout(() => $('#newCh')?.click(), 50); }
+      };
+    }
+  });
+}
+
 /* =====================================================
    Arranque
 ===================================================== */
@@ -1638,6 +1747,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   refreshUsersDatalist();
   window.addEventListener('hashchange', route);
   route();
+  $('#helpBtn').onclick = () => openTutorial(false);
+  let seen = false;
+  try { seen = !!localStorage.getItem(TUTO_KEY); } catch {}
+  if (!seen) openTutorial(!DB.data.channels.length);
   // Pedir que el navegador no borre los datos por falta de espacio
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 });

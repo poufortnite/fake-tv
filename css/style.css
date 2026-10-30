@@ -764,3 +764,25 @@ body.capture .pm-add, body.shooting .pm-add { display: none; }
   body.capture .tw-input .tw-placeholder, body.shooting .tw-input .tw-placeholder { display: inline; }
   body.capture .tw-input, body.shooting .tw-input { height: 40px; min-height: 0; align-items: center; padding-bottom: 0; }
 }
+
+/* ---------- Botón "?" y tutorial ---------- */
+.btn-help {
+  width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; border: 1px solid var(--line-2);
+  background: transparent; color: var(--purple-soft); font-weight: 800; font-size: 15px; padding: 0; cursor: pointer; font-family: inherit;
+}
+.btn-help:hover { background: rgba(145,71,255,.18); border-color: var(--purple-hi); }
+.tuto { text-align: center; }
+.tuto-ico { width: 64px; height: 64px; margin: 2px auto 10px; border-radius: 50%; background: rgba(145,71,255,.18); color: var(--purple-soft); display: flex; align-items: center; justify-content: center; }
+.tuto-ico > svg { width: 32px; height: 32px; }
+.tuto h3 { margin: 0 0 10px; font-size: 19px; }
+.tuto-text { text-align: left; font-size: 14px; line-height: 1.55; color: var(--text); }
+.tuto-text p { margin: 0 0 10px; }
+.tuto-text a { color: var(--purple-soft); }
+.chip { display: inline-block; background: var(--bg-4); border: 1px solid var(--line-2); border-radius: 4px; padding: 0 6px; font-size: 12px; font-weight: 600; line-height: 20px; white-space: nowrap; }
+.chip-round { border-radius: 50%; width: 22px; height: 22px; padding: 0; text-align: center; color: var(--purple-soft); }
+.tuto-dots { display: flex; justify-content: center; gap: 6px; margin: 14px 0 0; }
+.tuto-dots button { width: 8px; height: 8px; border-radius: 50%; border: none; padding: 0; background: var(--line-2); cursor: pointer; }
+.tuto-dots button.active { background: var(--purple-hi); }
+.tuto-btns { display: flex; justify-content: space-between; gap: 8px; margin-top: 16px; }
+.tuto-btns .btn { flex: 1; height: 38px; }
+@media (max-width: 820px) { .btn-help { width: 34px; height: 34px; } }
