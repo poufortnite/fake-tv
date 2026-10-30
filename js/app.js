@@ -182,10 +182,12 @@ function viewHome() {
     fields: [
       { key: 'name', label: 'Nombre del canal / streamer', required: true, type: 'user', placeholder: 'nombre_del_canal', hint: 'Si ya existe un usuario con ese nombre, será el dueño del canal.' },
       { key: 'title', label: 'Título del directo', placeholder: 'Título del directo' },
-      { key: 'category', label: 'Categoría', placeholder: 'Just Chatting' }
+      { key: 'category', label: 'Categoría', placeholder: 'Just Chatting' },
+      { key: 'live', label: 'Está en directo ahora', type: 'check', value: false }
     ],
     onSubmit(v) {
       const ch = DB.addChannel(v);
+      if (ch) ch.live = v.live;
       if (!ch) return false;
       DB.save(); refreshUsersDatalist();
       location.hash = '#/p/' + ch.id;
@@ -330,6 +332,49 @@ function viewEmotes() {
   };
 }
 
+
+/* =====================================================
+   VISTA: CHAT (elegir de qué canal)
+===================================================== */
+function viewChatPicker() {
+  setNav('chat');
+  const chans = DB.data.channels.slice().sort((a, b) => (b.lastChat || 0) - (a.lastChat || 0));
+  view().innerHTML = `
+  <section class="page">
+    <div class="page-head">
+      <div><h1>Chat</h1><p class="muted-p">Elige de qué canal quieres abrir el chat.</p></div>
+    </div>
+    ${chans.length ? `
+      <input id="chatSearch" class="search" placeholder="Buscar canal…" autocomplete="off" style="margin-bottom:12px">
+      <div class="chat-pick" id="chatPick">${chans.map(ch => {
+        const o = DB.user(ch.ownerId) || { name: '?', color: '#9147ff' };
+        const last = ch.messages.filter(m => m.type === 'msg').slice(-1)[0];
+        const lu = last ? msgUser(last) : null;
+        return `
+        <a class="chat-pick-row" href="#/c/${ch.id}" data-name="${esc(o.name.toLowerCase())}">
+          <span class="prof-avatar sm${ch.live ? ' live' : ''}">${avatarHTML(o, 44)}</span>
+          <span class="chat-pick-meta">
+            <b>${esc(o.name)}${o.verified ? VERIFIED_SVG : ''}</b>
+            <span class="muted-p small">${last ? `<b style="color:${readableColor(lu.color)}">${esc(lu.name)}</b>: ${esc((last.text || '').slice(0, 70))}` : 'Chat vacío'}</span>
+          </span>
+          <span class="chat-pick-side">
+            ${ch.live ? '<span class="live-pill static">EN DIRECTO</span>' : '<span class="muted-p small">Desconectado</span>'}
+            <span class="muted-p small">${ch.messages.length} mensajes</span>
+          </span>
+        </a>`;
+      }).join('')}</div>` : `
+      <div class="empty">
+        <div class="empty-ico">💬</div>
+        <h2>No hay canales todavía</h2>
+        <p class="muted-p">Crea un canal en <a href="#/">Canales</a> para empezar a hacer chats.</p>
+      </div>`}
+  </section>`;
+  $('#chatSearch')?.addEventListener('input', e => {
+    const q = e.target.value.trim().toLowerCase();
+    $$('.chat-pick-row').forEach(r => { r.hidden = !r.dataset.name.includes(q); });
+  });
+}
+
 /* =====================================================
    VISTA: CANAL (chat)
 ===================================================== */
@@ -337,10 +382,11 @@ let CH = null;           // canal abierto
 let replyTarget = null;  // mensaje al que se responde
 
 function viewChannel(id) {
-  setNav('');
+  setNav('chat');
   CH = DB.channel(id);
-  if (!CH) { location.hash = '#/'; return; }
+  if (!CH) { location.hash = '#/chat'; return; }
   replyTarget = null;
+  CH.lastChat = Date.now(); DB.save();
   const owner = DB.user(CH.ownerId) || { name: '?', color: '#9147ff' };
   const s = CH.settings;
 
@@ -1050,6 +1096,7 @@ function viewRefreshHead() {
 const VIDEO_TYPES = { past: 'Emisión anterior', highlight: 'Destacado', upload: 'Subida', clip: 'Clip' };
 const fmtCompact = n => new Intl.NumberFormat('es-ES', { notation: 'compact', maximumFractionDigits: 1 }).format(Number(n) || 0);
 const VERIFIED_SVG = '<svg class="verified-ico" viewBox="0 0 16 16" width="18" height="18" aria-label="Verificado"><path fill="#a970ff" fill-rule="evenodd" d="M12.5 3.5 8 2 3.5 3.5 2 8l1.5 4.5L8 14l4.5-1.5L14 8l-1.5-4.5ZM7 11l4.5-4.5L10 5 7 8 5.5 6.5 4 8l3 3Z"/></svg>';
+const STAR_FILLED = '<svg viewBox="0 0 20 20" width="20" height="20"><path fill="currentColor" d="M8.944 2.654c.406-.872 1.706-.872 2.112 0l1.754 3.77 4.2.583c.932.13 1.318 1.209.664 1.853l-3.128 3.083.755 4.272c.163.92-.876 1.603-1.722 1.132L10 15.354l-3.579 1.993c-.846.47-1.885-.212-1.722-1.132l.755-4.272L2.326 8.86c-.654-.644-.268-1.723.664-1.853l4.2-.583 1.754-3.77z"/></svg>';
 const LINK_SVG = '<svg viewBox="0 0 20 20" width="18" height="18"><path fill="currentColor" d="M6 8h2V6H6a4 4 0 000 8h2v-2H6a2 2 0 010-4zm8-2h-2v2h2a2 2 0 010 4h-2v2h2a4 4 0 000-8zm-1 5V9H7v2h6z"/></svg>';
 
 let profileTab = 'home';
@@ -1163,6 +1210,7 @@ function viewProfile(id) {
   <div class="prof-tools">
     <a href="#/" class="btn ghost sm">← Canales</a>
     <span class="grow"></span>
+    <button class="btn ghost sm live-toggle${ch.live ? ' on' : ''}" id="liveToggle" title="Cambiar entre en directo y desconectado">${ch.live ? '🔴 En directo' : '⚫ Desconectado'}</button>
     <button class="btn ghost sm" id="profEdit">✏️ Editar perfil</button>
     <button class="btn ghost sm" id="profPng">🖼️ Descargar PNG</button>
     <button class="btn capture sm" id="profCapture">Modo captura</button>
@@ -1176,8 +1224,8 @@ function viewProfile(id) {
         <span>${fmtCompact(ch.followers)} seguidores</span>
       </div>
       <div class="prof-actions">
-        <button class="tw-btn-follow" tabindex="-1"><svg viewBox="0 0 20 20" width="20" height="20"><path fill="currentColor" fill-rule="evenodd" d="M9.17 4.33A4.5 4.5 0 002 8.06c0 1.2.47 2.34 1.32 3.18L10 18l6.68-6.76A4.5 4.5 0 0018 8.06a4.5 4.5 0 00-7.17-3.73L10 5l-.83-.67z"/></svg>Seguir</button>
-        <button class="tw-btn-sub" tabindex="-1">${ICONS.star}Suscribirse</button>
+        <button class="tw-btn-follow${ch.following ? ' on' : ''}" id="followBtn" title="${ch.following ? 'Dejar de seguir' : 'Seguir'}"><svg viewBox="0 0 20 20" width="20" height="20"><path fill="currentColor" fill-rule="evenodd" d="M9.17 4.33A4.5 4.5 0 002 8.06c0 1.2.47 2.34 1.32 3.18L10 18l6.68-6.76A4.5 4.5 0 0018 8.06a4.5 4.5 0 00-7.17-3.73L10 5l-.83-.67z"/></svg>${ch.following ? '' : 'Seguir'}</button>
+        <button class="tw-btn-sub${ch.subscribed ? ' on' : ''}" id="subBtn">${ch.subscribed ? STAR_FILLED + 'Suscrito' : ICONS.star + 'Suscribirse'}</button>
       </div>
     </div>
     <nav class="prof-tabs">
@@ -1199,6 +1247,9 @@ function viewProfile(id) {
     videoForm(ch, ch.videos.find(v => v.id === c.dataset.vid), rerender);
   });
   $('#profEdit').onclick = () => channelSettings('general', rerender);
+  $('#liveToggle').onclick = () => { ch.live = !ch.live; DB.save(); rerender(); };
+  $('#followBtn').onclick = () => { ch.following = !ch.following; DB.save(); rerender(); };
+  $('#subBtn').onclick = () => { ch.subscribed = !ch.subscribed; DB.save(); rerender(); };
   $('#profPng').onclick = () => downloadPNG('#profPage', o.name + '_perfil');
   $('#profCapture').onclick = () => document.body.classList.add('capture');
   $('#exitCapture').onclick = exitCapture;
@@ -1246,6 +1297,7 @@ function route() {
   }
   if (parts[0] === 'users') return viewUsers();
   if (parts[0] === 'emotes') return viewEmotes();
+  if (parts[0] === 'chat') return viewChatPicker();
   viewHome();
 }
 

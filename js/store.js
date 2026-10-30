@@ -179,7 +179,7 @@ const DB = {
       viewers: Math.floor(200 + Math.random() * 4000), thumb: null,
       mods: [], vips: [], subs: {}, subBadges: [],
       messages: [], pinned: null, settings: newChannelSettings(), created: Date.now(),
-      live: true, followers: Math.floor(1000 + Math.random() * 50000), bio: '', banner: null, links: [], videos: []
+      live: false, followers: Math.floor(1000 + Math.random() * 50000), bio: '', banner: null, links: [], videos: []
     };
     this.data.channels.push(ch);
     return ch;

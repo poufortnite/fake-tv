@@ -6,6 +6,7 @@ Crea chats de Twitch falsos (vista PC, tema oscuro) para tus AU.
 ## Qué puedes hacer
 
 - **Perfiles de canal**: banner, foto, biografía, seguidores, redes, en directo o desconectado, y vídeos (emisiones anteriores, destacados, subidas y clips).
+- **Página Chat**: elige de qué canal abrir el chat (también se entra desde el perfil del canal).
 - **Canales**: cada canal tiene su chat, sus mods, VIPs, subs e insignias de sub propias. Al crear un canal se crea también su usuario (el streamer).
 - **Usuarios globales**: añade muchos a la vez escribiéndolos separados por comas. Cualquiera puede escribir en cualquier canal.
 - **Escribir rápido**: elige usuario (con autocompletado) o pulsa 🎲 para uno aleatorio. Si escribes un nombre que no existe, se crea solo.

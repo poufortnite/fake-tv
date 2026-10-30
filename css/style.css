@@ -434,6 +434,25 @@ body.capture .exit-capture:hover { opacity: 1; }
 .tw-btn-follow { background: var(--purple); }
 .tw-btn-sub { background: rgba(83,83,95,.38); color: var(--text); }
 .tw-btn-follow svg, .tw-btn-sub svg { width: 20px; height: 20px; }
+.tw-btn-follow, .tw-btn-sub { cursor: pointer; }
+.tw-btn-follow:hover { background: #772ce8; }
+.tw-btn-follow.on { background: rgba(83,83,95,.38); padding: 0 5px; }
+.tw-btn-follow.on:hover { background: rgba(83,83,95,.55); }
+.tw-btn-sub:hover { background: rgba(83,83,95,.55); }
+.tw-btn-sub.on svg { color: var(--purple-hi); }
+body.capture .tw-btn-follow, body.capture .tw-btn-sub { cursor: default; }
+
+/* Página Chat: elegir canal */
+.chat-pick { display: flex; flex-direction: column; gap: 6px; max-width: 760px; }
+.chat-pick-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 8px; text-decoration: none; color: var(--text); }
+.chat-pick-row:hover { border-color: var(--purple-hi); background: var(--bg-3); }
+.chat-pick-meta { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.chat-pick-meta > b { display: flex; align-items: center; gap: 4px; font-size: 15px; }
+.chat-pick-meta .small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
+.chat-pick-side { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+.live-pill.static { position: static; }
+.prof-avatar.sm { padding: 2px; }
+.prof-avatar.sm .avatar { border-width: 2px; }
 
 .prof-tabs { display: flex; gap: 4px; padding: 0 30px; border-bottom: 1px solid var(--line); }
 .prof-tabs button, .prof-tabs a {
@@ -511,3 +530,6 @@ body.capture .prof { margin-top: 0; }
   .offline-card { left: 12px; bottom: 12px; right: 12px; padding: 10px 12px; }
   .prof-tools { flex-wrap: wrap; padding: 10px 12px 0; }
 }
+
+.live-toggle.on { background: rgba(235,4,0,.25); }
+.live-toggle.on:hover { background: rgba(235,4,0,.38); }
