@@ -1154,7 +1154,7 @@ function videoForm(ch, v, after) {
 }
 
 function viewProfile(id) {
-  setNav('');
+  setNav('home');
   CH = DB.channel(id);
   if (!CH) { location.hash = '#/'; return; }
   const ch = CH;
@@ -1417,6 +1417,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupInstall();
   $('#exportBtn').onclick = exportData;
   $('#importBtn').onclick = importData;
+  $('#moreBtn').onclick = () => openModal({
+    title: 'Copia de tus datos',
+    body: `<p class="muted-p small">Tus datos solo están en este dispositivo. Guarda una copia de vez en cuando para no perderlos o para pasarlos a otro móvil u ordenador.</p>
+      <div class="stack"><button class="btn ghost wide" data-m="export">Guardar copia</button><button class="btn ghost wide" data-m="import">Cargar copia</button></div>`,
+    onMount(el, close) {
+      el.querySelector('[data-m=export]').onclick = () => { close(); exportData(); };
+      el.querySelector('[data-m=import]').onclick = () => { close(); importData(); };
+    }
+  });
   await DB.load();
   refreshUsersDatalist();
   window.addEventListener('hashchange', route);
