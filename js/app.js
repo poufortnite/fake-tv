@@ -1,0 +1,1048 @@
+/* =====================================================
+   fake.tv — app.js  (vistas, eventos, router)
+===================================================== */
+'use strict';
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const view = () => $('#view');
+
+/* =====================================================
+   UI básica: toast, modal, formularios
+===================================================== */
+function toast(msg, kind = '') {
+  const t = document.createElement('div');
+  t.className = 'toast ' + kind;
+  t.textContent = msg;
+  $('#toasts').appendChild(t);
+  setTimeout(() => t.classList.add('out'), 2600);
+  setTimeout(() => t.remove(), 3000);
+}
+
+function openModal({ title, body, footer = '', wide = false, onMount }) {
+  const back = document.createElement('div');
+  back.className = 'modal-back';
+  back.innerHTML = `
+    <div class="modal ${wide ? 'wide' : ''}" role="dialog" aria-modal="true">
+      <div class="modal-head"><h3>${esc(title)}</h3><button class="icon-btn" data-close title="Cerrar">✕</button></div>
+      <div class="modal-body">${body}</div>
+      ${footer ? `<div class="modal-foot">${footer}</div>` : ''}
+    </div>`;
+  $('#modalRoot').appendChild(back);
+  const close = () => back.remove();
+  back.addEventListener('mousedown', e => { if (e.target === back) close(); });
+  back.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', close));
+  if (onMount) onMount(back, close);
+  return { el: back, close };
+}
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const m = $$('#modalRoot .modal-back').pop();
+  if (m) { m.remove(); return; }
+  if (document.body.classList.contains('capture')) exitCapture();
+});
+
+function fieldHTML(f) {
+  const id = 'f_' + f.key;
+  const hint = f.hint ? `<small>${f.hint}</small>` : '';
+  const ph = f.placeholder ? ` placeholder="${esc(f.placeholder)}"` : '';
+  const val = f.value ?? '';
+  switch (f.type) {
+    case 'textarea':
+      return `<label class="field"><span>${f.label}</span><textarea name="${f.key}" id="${id}" rows="${f.rows || 3}"${ph}>${esc(val)}</textarea>${hint}</label>`;
+    case 'select':
+      return `<label class="field"><span>${f.label}</span><select name="${f.key}" id="${id}">${f.options.map(o =>
+        `<option value="${esc(o.value)}"${String(o.value) === String(val) ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select>${hint}</label>`;
+    case 'check':
+      return `<label class="check"><input type="checkbox" name="${f.key}" id="${id}"${val ? ' checked' : ''}><span>${f.label}</span></label>`;
+    case 'user':
+      return `<label class="field"><span>${f.label}</span><input name="${f.key}" id="${id}" list="usersDL" autocomplete="off" value="${esc(val)}"${ph}>${hint}</label>`;
+    default:
+      return `<label class="field"><span>${f.label}</span><input name="${f.key}" id="${id}" type="${f.type || 'text'}" autocomplete="off" value="${esc(val)}"${ph}${f.min != null ? ` min="${f.min}"` : ''}>${hint}</label>`;
+  }
+}
+
+function formModal({ title, fields, submitLabel = 'Aceptar', onSubmit }) {
+  return openModal({
+    title,
+    body: `<form class="form">${fields.map(fieldHTML).join('')}<button type="submit" hidden></button></form>`,
+    footer: `<button class="btn ghost" data-close>Cancelar</button><button class="btn primary" data-submit>${submitLabel}</button>`,
+    onMount(el, close) {
+      const form = el.querySelector('form');
+      const submit = () => {
+        const v = {};
+        for (const f of fields) {
+          const inp = form.elements[f.key];
+          if (!inp) continue;
+          v[f.key] = f.type === 'check' ? inp.checked : f.type === 'number' ? Number(inp.value) : inp.value.trim();
+          if (f.required && !v[f.key]) { inp.focus(); inp.classList.add('err'); return; }
+        }
+        if (onSubmit(v) !== false) close();
+      };
+      form.addEventListener('submit', e => { e.preventDefault(); submit(); });
+      el.querySelector('[data-submit]').addEventListener('click', submit);
+      const first = form.querySelector('input:not([type=checkbox]),textarea,select');
+      if (first) first.focus();
+    }
+  });
+}
+
+function confirmModal(text, okLabel = 'Borrar') {
+  return new Promise(res => {
+    let done = false;
+    const { el } = openModal({
+      title: 'Confirmar',
+      body: `<p class="muted-p">${text}</p>`,
+      footer: `<button class="btn ghost" data-close>Cancelar</button><button class="btn danger" data-ok>${okLabel}</button>`,
+      onMount(el, close) {
+        el.querySelector('[data-ok]').onclick = () => { done = true; close(); res(true); };
+      }
+    });
+    new MutationObserver((_, obs) => { if (!el.isConnected) { obs.disconnect(); if (!done) res(false); } })
+      .observe($('#modalRoot'), { childList: true });
+  });
+}
+
+function avatarHTML(user, size = 40) {
+  if (!user) return `<span class="avatar" style="width:${size}px;height:${size}px"></span>`;
+  if (user.avatar) return `<img class="avatar" src="${esc(user.avatar)}" style="width:${size}px;height:${size}px" alt="">`;
+  return `<span class="avatar" style="width:${size}px;height:${size}px;background:${readableColor(user.color)};font-size:${Math.round(size * .45)}px">${esc(user.name[0] || '?').toUpperCase()}</span>`;
+}
+
+function refreshUsersDatalist() {
+  $('#usersDL').innerHTML = DB.data.users
+    .slice().sort((a, b) => a.name.localeCompare(b.name))
+    .map(u => `<option value="${esc(u.name)}">`).join('');
+}
+
+function setNav(active) {
+  $$('.nav-link').forEach(a => a.classList.toggle('active', a.dataset.nav === active));
+}
+
+/* =====================================================
+   VISTA: CANALES (inicio)
+===================================================== */
+function viewHome() {
+  setNav('home');
+  const chans = DB.data.channels;
+  view().innerHTML = `
+  <section class="page">
+    <div class="page-head">
+      <div><h1>Tus canales</h1><p class="muted-p">Cada canal tiene su chat, sus mods, VIPs y suscriptores.</p></div>
+      <button class="btn primary" id="newCh">+ Crear canal</button>
+    </div>
+    ${chans.length ? `<div class="ch-grid">${chans.map(ch => {
+      const o = DB.user(ch.ownerId) || { name: '?', color: '#9147ff' };
+      const c = readableColor(o.color);
+      const thumb = ch.thumb ? `background-image:url('${ch.thumb}')` : `background:linear-gradient(135deg, ${c}55, #18181b 70%)`;
+      return `
+      <a class="ch-card" href="#/c/${ch.id}">
+        <div class="ch-thumb" style="${thumb}">
+          <span class="live-pill">EN DIRECTO</span>
+          <span class="viewers-pill">${Number(ch.viewers || 0).toLocaleString('es-ES')} espectadores</span>
+        </div>
+        <div class="ch-info">
+          ${avatarHTML(o, 40)}
+          <div class="ch-meta">
+            <b class="ch-title">${esc(ch.title || 'Sin título')}</b>
+            <span class="ch-name">${esc(o.name)}</span>
+            ${ch.category ? `<span class="ch-cat">${esc(ch.category)}</span>` : ''}
+          </div>
+        </div>
+      </a>`;
+    }).join('')}</div>` : `
+      <div class="empty">
+        <div class="empty-ico">📺</div>
+        <h2>Aún no tienes canales</h2>
+        <p class="muted-p">Crea el primero. Al crear un canal también se crea su usuario (el streamer).</p>
+        <button class="btn primary" id="newCh2">+ Crear canal</button>
+      </div>`}
+  </section>`;
+  const create = () => formModal({
+    title: 'Crear canal',
+    submitLabel: 'Crear',
+    fields: [
+      { key: 'name', label: 'Nombre del canal / streamer', required: true, type: 'user', placeholder: 'jimin_official', hint: 'Si ya existe un usuario con ese nombre, será el dueño del canal.' },
+      { key: 'title', label: 'Título del directo', placeholder: 'charlando con el chat 💜' },
+      { key: 'category', label: 'Categoría', placeholder: 'Just Chatting' }
+    ],
+    onSubmit(v) {
+      const ch = DB.addChannel(v);
+      if (!ch) return false;
+      DB.save(); refreshUsersDatalist();
+      location.hash = '#/c/' + ch.id;
+    }
+  });
+  $('#newCh')?.addEventListener('click', create);
+  $('#newCh2')?.addEventListener('click', create);
+}
+
+/* =====================================================
+   VISTA: USUARIOS
+===================================================== */
+function viewUsers() {
+  setNav('users');
+  view().innerHTML = `
+  <section class="page">
+    <div class="page-head">
+      <div><h1>Usuarios <span class="count">${DB.data.users.length}</span></h1>
+      <p class="muted-p">Los usuarios son globales: pueden escribir en cualquier canal.</p></div>
+    </div>
+    <div class="card">
+      <label class="field"><span>Añadir usuarios <small>· separados por comas</small></span>
+        <div class="row"><input id="bulkUsers" placeholder="army_luna, yoonminist, kookie_97" autocomplete="off"><button class="btn primary" id="bulkAdd">Añadir</button></div>
+      </label>
+    </div>
+    <div class="toolbar">
+      <input id="userSearch" class="search" placeholder="Buscar usuario…" autocomplete="off">
+    </div>
+    <div class="user-list" id="userList"></div>
+  </section>`;
+
+  const renderList = () => {
+    const q = $('#userSearch').value.trim().toLowerCase();
+    const users = DB.data.users.filter(u => u.name.toLowerCase().includes(q))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    $('#userList').innerHTML = users.length ? users.map(u => {
+      const owns = DB.channelsOwnedBy(u.id);
+      return `
+      <div class="user-row" data-uid="${u.id}">
+        <button class="avatar-btn" data-act="avatar" title="Cambiar avatar">${avatarHTML(u, 36)}</button>
+        <input class="name-in" value="${esc(u.name)}" data-act="rename" style="color:${readableColor(u.color)}">
+        <input type="color" value="${esc(u.color)}" data-act="color" title="Color del nombre">
+        <button class="btn ghost xs" data-act="rnd" title="Color aleatorio">🎲</button>
+        <label class="check sm" title="Insignia de verificado"><input type="checkbox" data-act="verified"${u.verified ? ' checked' : ''}><img src="img/badges/verified.png" width="16" alt=""></label>
+        ${owns.length ? `<span class="pill">canal</span>` : ''}
+        <button class="icon-btn danger" data-act="delete" title="Borrar">✕</button>
+      </div>`;
+    }).join('') : `<p class="muted-p">No hay usuarios${q ? ' con ese nombre' : ''}.</p>`;
+  };
+  renderList();
+
+  $('#bulkAdd').onclick = () => {
+    const [created, existing] = DB.bulkUsers($('#bulkUsers').value);
+    DB.save(); refreshUsersDatalist();
+    $('#bulkUsers').value = '';
+    renderList();
+    if (created.length) toast(`✅ ${created.length} usuario(s) creado(s)` + (existing.length ? ` · ${existing.length} ya existían` : ''));
+    else if (existing.length) toast('Esos usuarios ya existían');
+  };
+  $('#bulkUsers').addEventListener('keydown', e => { if (e.key === 'Enter') $('#bulkAdd').click(); });
+  $('#userSearch').addEventListener('input', renderList);
+
+  const list = $('#userList');
+  list.addEventListener('change', e => {
+    const row = e.target.closest('.user-row'); if (!row) return;
+    const u = DB.user(row.dataset.uid); const act = e.target.dataset.act;
+    if (act === 'rename') {
+      if (!DB.renameUser(u.id, e.target.value)) { toast('Ese nombre ya existe o no es válido', 'error'); e.target.value = u.name; return; }
+    } else if (act === 'color') u.color = e.target.value;
+    else if (act === 'verified') u.verified = e.target.checked;
+    DB.save(); refreshUsersDatalist(); renderList();
+  });
+  list.addEventListener('input', e => {
+    if (e.target.dataset.act === 'color') e.target.closest('.user-row').querySelector('.name-in').style.color = readableColor(e.target.value);
+  });
+  list.addEventListener('click', async e => {
+    const btn = e.target.closest('[data-act]'); if (!btn) return;
+    const row = btn.closest('.user-row'); const u = DB.user(row.dataset.uid);
+    if (btn.dataset.act === 'rnd') { u.color = randomColor(); DB.save(); renderList(); }
+    if (btn.dataset.act === 'avatar') {
+      const img = await pickImage(128);
+      if (img) { u.avatar = img; DB.save(); renderList(); }
+    }
+    if (btn.dataset.act === 'delete') {
+      const owns = DB.channelsOwnedBy(u.id);
+      if (owns.length) { toast('Es dueño de un canal. Borra antes el canal.', 'error'); return; }
+      if (await confirmModal(`¿Borrar a <b>${esc(u.name)}</b>? Sus mensajes antiguos se quedan con su nombre.`)) {
+        DB.data.channels.forEach(ch => ch.messages.forEach(m => {
+          if (m.userId === u.id) m.snap = { name: u.name, color: u.color };
+          if (m.toId === u.id) m.toSnap = { name: u.name, color: u.color };
+        }));
+        DB.deleteUser(u.id); DB.save(); refreshUsersDatalist(); renderList();
+      }
+    }
+  });
+}
+
+/* =====================================================
+   VISTA: EMOTES
+===================================================== */
+function viewEmotes() {
+  setNav('emotes');
+  view().innerHTML = `
+  <section class="page">
+    <div class="page-head">
+      <div><h1>Emotes</h1><p class="muted-p">Escribe el código del emote en un mensaje (separado por espacios) y aparecerá la imagen.</p></div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">Tus emotes / stickers</h3>
+      <p class="muted-p small">Sube PNG, WEBP o GIF (los GIF pequeños mantienen la animación). Códigos estilo Twitch: <code>jiminHeart</code>, <code>yoongiSleep</code>…</p>
+      <div class="row">
+        <input id="emoCode" placeholder="Código, p. ej. kookieLove" autocomplete="off">
+        <button class="btn primary" id="emoAdd">Subir imagen…</button>
+      </div>
+      <div class="emote-grid" id="ownEmotes"></div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">Emotes globales de Twitch</h3>
+      <div class="emote-grid">${Object.keys(TWITCH_EMOTES).map(code =>
+        `<div class="emote-cell"><img src="${twitchEmoteURL(TWITCH_EMOTES[code])}" alt="" loading="lazy"><code>${esc(code)}</code></div>`).join('')}</div>
+    </div>
+  </section>`;
+  const renderOwn = () => {
+    $('#ownEmotes').innerHTML = DB.data.emotes.length ? DB.data.emotes.map(e =>
+      `<div class="emote-cell"><img src="${esc(e.src)}" alt=""><code>${esc(e.code)}</code><button class="icon-btn danger xs" data-del="${e.id}" title="Borrar">✕</button></div>`).join('')
+      : '<p class="muted-p small">Todavía no has subido ninguno.</p>';
+  };
+  renderOwn();
+  $('#emoAdd').onclick = async () => {
+    const code = $('#emoCode').value.trim().replace(/\s+/g, '');
+    if (!code) { toast('Escribe primero el código', 'error'); $('#emoCode').focus(); return; }
+    if (DB.emoteByCode(code) || TWITCH_EMOTES[code]) { toast('Ese código ya existe', 'error'); return; }
+    const src = await pickImage(112);
+    if (!src) return;
+    DB.data.emotes.push({ id: uid(), code, src });
+    if (DB.save()) { $('#emoCode').value = ''; renderOwn(); toast('Emote añadido: ' + code); }
+    else DB.data.emotes.pop();
+  };
+  $('#ownEmotes').onclick = e => {
+    const id = e.target.closest('[data-del]')?.dataset.del; if (!id) return;
+    DB.data.emotes = DB.data.emotes.filter(x => x.id !== id); DB.save(); renderOwn();
+  };
+}
+
+/* =====================================================
+   VISTA: CANAL (chat)
+===================================================== */
+let CH = null;           // canal abierto
+let replyTarget = null;  // mensaje al que se responde
+
+function viewChannel(id) {
+  setNav('');
+  CH = DB.channel(id);
+  if (!CH) { location.hash = '#/'; return; }
+  replyTarget = null;
+  const owner = DB.user(CH.ownerId) || { name: '?', color: '#9147ff' };
+  const s = CH.settings;
+
+  view().innerHTML = `
+  <div class="ch-layout">
+    <aside class="ctrl">
+      <div class="ctrl-head">
+        <a href="#/" class="icon-btn" title="Volver a canales">←</a>
+        ${avatarHTML(owner, 34)}
+        <div class="ctrl-head-meta"><b>${esc(owner.name)}</b><span>${esc(CH.title || 'Sin título')}</span></div>
+        <button class="icon-btn" id="chSettings" title="Ajustes del canal">⚙️</button>
+      </div>
+
+      <div class="card">
+        <div class="field"><span>Escribir como</span>
+          <div class="row">
+            <input id="who" list="usersDL" autocomplete="off" placeholder="nombre de usuario" value="${esc(s.lastUser || owner.name)}">
+            <button class="btn ghost" id="rndUser" title="Usuario aleatorio">🎲</button>
+          </div>
+        </div>
+        <div class="who-preview" id="whoPreview"></div>
+        <label class="check sm"><input type="checkbox" id="randomAfter"${s.randomAfter ? ' checked' : ''}><span>Elegir usuario aleatorio después de enviar</span></label>
+
+        <div class="reply-bar" id="replyBar" hidden></div>
+        <div class="composer">
+          <textarea id="msgText" rows="3" placeholder="Mensaje…  (Enter envía · Shift+Enter salto)"></textarea>
+          <button class="emote-toggle" id="emoteToggle" title="Emotes">${ICONS.smile}</button>
+          <div class="emote-pop" id="emotePop" hidden></div>
+        </div>
+        <div class="row wrap">
+          <label class="check sm"><input type="checkbox" id="optHighlight"><span>Destacado</span></label>
+          <label class="check sm"><input type="checkbox" id="optFirst"><span>Primer mensaje</span></label>
+          <span class="grow"></span>
+          <button class="btn primary" id="sendBtn">Enviar</button>
+        </div>
+        <p class="hint">/me acción · @usuario · códigos de emotes</p>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Eventos</h3>
+        <div class="btn-grid">
+          <button class="btn evt" data-evt="sub">⭐ Sub</button>
+          <button class="btn evt" data-evt="gift">🎁 Regalo</button>
+          <button class="btn evt" data-evt="raid">⚔️ Raid</button>
+          <button class="btn evt" data-evt="bits">💎 Bits</button>
+          <button class="btn evt" data-evt="announce">📣 Anuncio</button>
+          <button class="btn evt" data-evt="pin">📌 Fijar</button>
+          <button class="btn evt" data-evt="unpin">Quitar fijado</button>
+          <button class="btn evt" data-evt="system">💬 Sistema</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Chat</h3>
+        <div class="btn-grid">
+          <button class="btn ghost" id="undoBtn">↶ Deshacer</button>
+          <button class="btn ghost" id="clearBtn">Vaciar chat</button>
+          <button class="btn ghost" id="scriptBtn">📝 Pegar guion</button>
+          <button class="btn ghost" id="pngBtn">🖼️ Descargar PNG</button>
+        </div>
+        <button class="btn capture" id="captureBtn">Modo captura</button>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Vista</h3>
+        <label class="check sm"><input type="checkbox" id="optTs"${s.showTs ? ' checked' : ''}><span>Mostrar hora</span></label>
+        <div class="grid2">
+          <label class="field"><span>Hora fija <small>(vacío = real)</small></span><input id="optClock" placeholder="21:37" value="${esc(s.clock)}"></label>
+          <label class="field"><span>Puntos del canal</span><input id="optPoints" value="${esc(s.points)}"></label>
+          <label class="field"><span>Ancho</span><input id="optW" type="number" min="260" max="600" value="${s.width}"></label>
+          <label class="field"><span>Alto</span><input id="optH" type="number" min="300" max="1400" value="${s.height}"></label>
+        </div>
+        <label class="field"><span>Aviso sobre el chat <small>(p. ej. “Modo lento (30 s)”)</small></span><input id="optMode" value="${esc(s.chatMode)}"></label>
+        <label class="field"><span>Punto de vista <small>(sus menciones se resaltan)</small></span><input id="optPov" list="usersDL" autocomplete="off" placeholder="nadie" value="${esc((DB.user(s.povUserId) || {}).name || '')}"></label>
+      </div>
+    </aside>
+
+    <section class="stage">${chatPanelHTML()}</section>
+  </div>
+  <button class="exit-capture" id="exitCapture" title="Salir (Esc)">✕ Salir del modo captura</button>`;
+
+  renderChat(CH);
+  bindChannel();
+  updateWhoPreview();
+}
+
+function saveCH() { DB.save(); }
+
+function currentTime() { return CH.settings.clock || nowHHMM(); }
+
+function pushItem(m) {
+  m.id = uid();
+  m.time = m.time || currentTime();
+  CH.messages.push(m);
+  saveCH();
+  renderChat(CH);
+}
+
+function resolveWho() {
+  const name = $('#who').value;
+  const existed = !!DB.userByName(name);
+  const u = DB.ensureUser(name);
+  if (!u) { toast('Escribe un nombre de usuario', 'error'); $('#who').focus(); return null; }
+  if (!existed) { refreshUsersDatalist(); toast('Usuario nuevo creado: ' + u.name); }
+  return u;
+}
+
+function updateWhoPreview() {
+  const u = DB.userByName($('#who').value);
+  const el = $('#whoPreview');
+  if (!u) { el.innerHTML = $('#who').value.trim() ? '<span class="muted-p small">Usuario nuevo (se creará al enviar)</span>' : ''; return; }
+  const roles = [];
+  if (CH.ownerId === u.id) roles.push('streamer');
+  if (CH.mods.includes(u.id)) roles.push('mod');
+  if (CH.vips.includes(u.id)) roles.push('vip');
+  if (CH.subs[u.id]) roles.push('sub');
+  el.innerHTML = `<span class="tw-badges">${badgesHTML(CH, u)}</span><b style="color:${readableColor(u.color)}">${esc(u.name)}</b>` +
+    (roles.length ? `<span class="muted-p small"> · ${roles.join(', ')}</span>` : '');
+}
+
+function pickRandomUser() {
+  const last = CH.messages.length ? CH.messages[CH.messages.length - 1].userId : null;
+  let pool = DB.data.users.filter(u => u.id !== last);
+  if (!pool.length) pool = DB.data.users;
+  if (!pool.length) { toast('Todavía no hay usuarios. Créalos en la pestaña Usuarios.', 'error'); return; }
+  const u = pool[Math.floor(Math.random() * pool.length)];
+  $('#who').value = u.name;
+  CH.settings.lastUser = u.name; saveCH();
+  updateWhoPreview();
+}
+
+function setReply(m) {
+  replyTarget = m;
+  const bar = $('#replyBar');
+  if (!m) { bar.hidden = true; bar.innerHTML = ''; return; }
+  const u = msgUser(m);
+  bar.hidden = false;
+  bar.innerHTML = `<span>${ICONS.reply} Respondiendo a <b>@${esc(u.name)}</b>: ${esc((m.text || '').slice(0, 60))}</span><button class="icon-btn xs" id="cancelReply">✕</button>`;
+  $('#cancelReply').onclick = () => setReply(null);
+  $('#msgText').focus();
+}
+
+function sendMessage() {
+  const ta = $('#msgText');
+  const text = ta.value.trim();
+  if (!text) return;
+  const u = resolveWho(); if (!u) return;
+  const m = { type: 'msg', userId: u.id, text };
+  if ($('#optHighlight').checked) m.highlight = true;
+  if ($('#optFirst').checked) m.first = true;
+  if (replyTarget) {
+    const ru = msgUser(replyTarget);
+    m.replyTo = { userId: replyTarget.userId, text: replyTarget.text, snap: { name: ru.name, color: ru.color } };
+    // Twitch añade la mención automáticamente
+    if (!new RegExp('^@' + ru.name + '\\b', 'i').test(m.text)) m.text = '@' + ru.name + ' ' + m.text;
+  }
+  pushItem(m);
+  ta.value = '';
+  $('#optHighlight').checked = false; $('#optFirst').checked = false;
+  setReply(null);
+  CH.settings.lastUser = u.name; saveCH();
+  if ($('#randomAfter').checked) pickRandomUser(); else updateWhoPreview();
+  ta.focus();
+}
+
+function bindChannel() {
+  const s = CH.settings;
+  $('#sendBtn').onclick = sendMessage;
+  $('#msgText').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+  $('#who').addEventListener('input', updateWhoPreview);
+  $('#who').addEventListener('change', () => { s.lastUser = $('#who').value.trim(); saveCH(); });
+  $('#rndUser').onclick = pickRandomUser;
+  $('#randomAfter').onchange = e => { s.randomAfter = e.target.checked; saveCH(); };
+
+  /* Emote picker */
+  const pop = $('#emotePop');
+  $('#emoteToggle').onclick = () => {
+    if (!pop.hidden) { pop.hidden = true; return; }
+    const own = DB.data.emotes.map(e => `<button class="emo" data-code="${esc(e.code)}" title="${esc(e.code)}"><img src="${esc(e.src)}" alt=""></button>`).join('');
+    const tw = Object.keys(TWITCH_EMOTES).map(c => `<button class="emo" data-code="${esc(c)}" title="${esc(c)}"><img src="${twitchEmoteURL(TWITCH_EMOTES[c])}" alt="" loading="lazy"></button>`).join('');
+    pop.innerHTML = (own ? `<div class="emo-sec">Tus emotes</div><div class="emo-grid">${own}</div>` : `<div class="emo-sec">Tus emotes · <a href="#/emotes">subir</a></div>`) +
+      `<div class="emo-sec">Twitch</div><div class="emo-grid">${tw}</div>`;
+    pop.hidden = false;
+  };
+  pop.addEventListener('click', e => {
+    const b = e.target.closest('[data-code]'); if (!b) return;
+    const ta = $('#msgText');
+    const pos = ta.selectionStart ?? ta.value.length;
+    const before = ta.value.slice(0, pos), after = ta.value.slice(pos);
+    const ins = (before && !/\s$/.test(before) ? ' ' : '') + b.dataset.code + ' ';
+    ta.value = before + ins + after;
+    ta.focus(); ta.selectionStart = ta.selectionEnd = pos + ins.length;
+  });
+  document.addEventListener('mousedown', closeEmotePop);
+
+  /* Acciones sobre mensajes del chat */
+  $('#twList').addEventListener('click', async e => {
+    const btn = e.target.closest('[data-act]'); if (!btn) return;
+    const id = btn.closest('[data-mid]').dataset.mid;
+    const m = CH.messages.find(x => x.id === id); if (!m) return;
+    const act = btn.dataset.act;
+    if (act === 'del') { CH.messages = CH.messages.filter(x => x.id !== id); saveCH(); renderChat(CH, { keepScroll: true }); }
+    if (act === 'reply') setReply(m);
+    if (act === 'pin') { CH.pinned = { userId: m.userId, text: m.text, snap: m.snap, byId: CH.ownerId }; saveCH(); renderChat(CH, { keepScroll: true }); }
+    if (act === 'edit') editMessage(m);
+  });
+
+  /* Eventos */
+  $$('[data-evt]').forEach(b => b.addEventListener('click', () => EVENTS[b.dataset.evt]()));
+
+  /* Chat */
+  $('#undoBtn').onclick = () => { CH.messages.pop(); saveCH(); renderChat(CH); };
+  $('#clearBtn').onclick = async () => {
+    if (await confirmModal('¿Vaciar todos los mensajes de este chat?', 'Vaciar')) { CH.messages = []; CH.pinned = null; saveCH(); renderChat(CH); }
+  };
+  $('#scriptBtn').onclick = scriptModal;
+  $('#pngBtn').onclick = downloadPNG;
+  $('#captureBtn').onclick = enterCapture;
+  $('#exitCapture').onclick = exitCapture;
+  $('#chSettings').onclick = () => channelSettings();
+
+  /* Vista */
+  $('#optTs').onchange = e => { s.showTs = e.target.checked; saveCH(); renderChat(CH, { keepScroll: true }); };
+  $('#optClock').onchange = e => { s.clock = e.target.value.trim(); saveCH(); };
+  $('#optPoints').oninput = e => { s.points = e.target.value; saveCH(); renderChat(CH, { keepScroll: true }); };
+  $('#optMode').oninput = e => { s.chatMode = e.target.value; saveCH(); renderChat(CH, { keepScroll: true }); };
+  const size = () => {
+    s.width = Math.min(600, Math.max(260, Number($('#optW').value) || 340));
+    s.height = Math.min(1400, Math.max(300, Number($('#optH').value) || 640));
+    saveCH(); renderChat(CH, { keepScroll: true });
+  };
+  $('#optW').onchange = size; $('#optH').onchange = size;
+  $('#optPov').onchange = e => {
+    const v = e.target.value.trim();
+    const u = v ? DB.userByName(v) : null;
+    if (v && !u) { toast('Ese usuario no existe', 'error'); e.target.value = ''; }
+    s.povUserId = u ? u.id : null; saveCH(); renderChat(CH, { keepScroll: true });
+  };
+}
+
+function closeEmotePop(e) {
+  const pop = $('#emotePop');
+  if (!pop || pop.hidden) return;
+  if (e.target.closest('#emotePop') || e.target.closest('#emoteToggle')) return;
+  pop.hidden = true;
+}
+
+function editMessage(m) {
+  const u = msgUser(m);
+  formModal({
+    title: 'Editar mensaje',
+    submitLabel: 'Guardar',
+    fields: [
+      { key: 'user', label: 'Usuario', type: 'user', value: u.name, required: true },
+      { key: 'text', label: 'Mensaje', type: 'textarea', value: m.text },
+      { key: 'time', label: 'Hora', value: m.time || '' },
+      { key: 'bits', label: 'Bits (0 = ninguno)', type: 'number', value: m.bits || 0, min: 0 },
+      { key: 'highlight', label: 'Mensaje destacado', type: 'check', value: m.highlight },
+      { key: 'first', label: 'Primer mensaje', type: 'check', value: m.first },
+      { key: 'deleted', label: 'Mostrar como <mensaje eliminado>', type: 'check', value: m.deleted }
+    ],
+    onSubmit(v) {
+      const nu = DB.ensureUser(v.user); if (!nu) return false;
+      Object.assign(m, { userId: nu.id, text: v.text, time: v.time, bits: v.bits > 0 ? v.bits : 0, highlight: v.highlight, first: v.first, deleted: v.deleted });
+      saveCH(); refreshUsersDatalist(); renderChat(CH, { keepScroll: true });
+    }
+  });
+}
+
+/* ---------- Eventos (sub, regalo, raid…) ---------- */
+function autoSubBadge(user, months = 1) {
+  if (!CH.subBadges.length || CH.subs[user.id] || user.id === CH.ownerId) return;
+  const sorted = CH.subBadges.slice().sort((a, b) => (a.months || 0) - (b.months || 0));
+  let pick = sorted[0];
+  sorted.forEach(b => { if ((b.months || 0) <= months) pick = b; });
+  CH.subs[user.id] = pick.id;
+}
+const tierOptions = [{ value: '1', label: 'Nivel 1' }, { value: '2', label: 'Nivel 2' }, { value: '3', label: 'Nivel 3' }];
+const whoNow = () => $('#who').value.trim();
+
+const EVENTS = {
+  sub() {
+    formModal({
+      title: 'Suscripción', submitLabel: 'Añadir',
+      fields: [
+        { key: 'user', label: 'Usuario', type: 'user', value: whoNow(), required: true },
+        { key: 'tier', label: 'Tipo', type: 'select', value: '1', options: [...tierOptions, { value: 'prime', label: 'Prime' }] },
+        { key: 'months', label: 'Meses suscrito (1 = sub nueva)', type: 'number', value: 1, min: 1 },
+        { key: 'streak', label: 'Racha (meses seguidos, opcional)', type: 'number', value: 0, min: 0 },
+        { key: 'text', label: 'Mensaje (opcional)', type: 'textarea', rows: 2 },
+        { key: 'badge', label: 'Darle la insignia de sub del canal', type: 'check', value: true }
+      ],
+      onSubmit(v) {
+        const u = DB.ensureUser(v.user); if (!u) return false;
+        if (v.badge) autoSubBadge(u, v.months);
+        pushItem({ type: 'sub', userId: u.id, tier: v.tier, months: v.months || 1, streak: v.streak || 0, text: v.text });
+        refreshUsersDatalist(); updateWhoPreview();
+      }
+    });
+  },
+  gift() {
+    formModal({
+      title: 'Regalar suscripciones', submitLabel: 'Añadir',
+      fields: [
+        { key: 'user', label: 'Quién regala', type: 'user', value: whoNow() },
+        { key: 'anon', label: 'Regalo anónimo', type: 'check' },
+        { key: 'to', label: 'Receptores', placeholder: 'kookie_97, army_luna', hint: 'Separados por comas. Si son varios (o pones cantidad) sale como regalo a la comunidad.' },
+        { key: 'count', label: 'Cantidad total (opcional)', type: 'number', value: 0, min: 0 },
+        { key: 'tier', label: 'Nivel', type: 'select', value: '1', options: tierOptions },
+        { key: 'total', label: 'Total regalado en el canal (opcional)', type: 'number', value: 0, min: 0 },
+        { key: 'badge', label: 'Dar insignia de sub a los receptores', type: 'check', value: true }
+      ],
+      onSubmit(v) {
+        const g = v.anon ? null : DB.ensureUser(v.user);
+        if (!v.anon && !g) { toast('Falta quién regala', 'error'); return false; }
+        const rec = String(v.to || '').split(/[,\n;]+/).map(cleanName).filter(Boolean).map(n => DB.ensureUser(n));
+        const n = Math.max(v.count || 0, rec.length);
+        if (!n) { toast('Pon al menos un receptor o una cantidad', 'error'); return false; }
+        const base = { userId: g ? g.id : null, anon: v.anon, tier: v.tier };
+        const time = currentTime();
+        if (n === 1 && rec.length === 1) {
+          CH.messages.push({ ...base, id: uid(), time, type: 'gift', toId: rec[0].id, total: v.total || 0 });
+        } else {
+          CH.messages.push({ ...base, id: uid(), time, type: 'giftbomb', count: n, total: v.total || 0 });
+          rec.forEach(r => CH.messages.push({ ...base, id: uid(), time, type: 'gift', toId: r.id }));
+        }
+        if (v.badge) rec.forEach(r => autoSubBadge(r, 1));
+        saveCH(); refreshUsersDatalist(); renderChat(CH); updateWhoPreview();
+      }
+    });
+  },
+  raid() {
+    formModal({
+      title: 'Raid', submitLabel: 'Añadir',
+      fields: [
+        { key: 'raider', label: 'Canal que hace la raid', type: 'user', required: true },
+        { key: 'viewers', label: 'Espectadores', type: 'number', value: 84, min: 1 }
+      ],
+      onSubmit(v) { pushItem({ type: 'raid', raider: cleanName(v.raider), viewers: (v.viewers || 1).toLocaleString('es-ES') }); }
+    });
+  },
+  bits() {
+    formModal({
+      title: 'Bits (cheer)', submitLabel: 'Enviar',
+      fields: [
+        { key: 'user', label: 'Usuario', type: 'user', value: whoNow(), required: true },
+        { key: 'bits', label: 'Cantidad de bits', type: 'number', value: 100, min: 1 },
+        { key: 'text', label: 'Mensaje (opcional)', type: 'textarea', rows: 2 }
+      ],
+      onSubmit(v) {
+        const u = DB.ensureUser(v.user); if (!u || !(v.bits > 0)) return false;
+        pushItem({ type: 'msg', userId: u.id, text: v.text, bits: v.bits });
+        refreshUsersDatalist();
+      }
+    });
+  },
+  announce() {
+    formModal({
+      title: 'Anuncio', submitLabel: 'Publicar',
+      fields: [
+        { key: 'user', label: 'Usuario (streamer o mod)', type: 'user', value: (DB.user(CH.ownerId) || {}).name, required: true },
+        { key: 'text', label: 'Texto', type: 'textarea', required: true },
+        { key: 'color', label: 'Color', type: 'select', value: 'primary', options: [
+          { value: 'primary', label: 'Principal' }, { value: 'purple', label: 'Morado' }, { value: 'blue', label: 'Azul' },
+          { value: 'green', label: 'Verde' }, { value: 'orange', label: 'Naranja' }] }
+      ],
+      onSubmit(v) {
+        const u = DB.ensureUser(v.user); if (!u) return false;
+        pushItem({ type: 'announce', userId: u.id, text: v.text, color: v.color });
+      }
+    });
+  },
+  pin() {
+    formModal({
+      title: 'Fijar mensaje', submitLabel: 'Fijar',
+      fields: [
+        { key: 'user', label: 'Autor del mensaje', type: 'user', value: whoNow(), required: true },
+        { key: 'text', label: 'Mensaje', type: 'textarea', required: true },
+        { key: 'by', label: 'Fijado por', type: 'user', value: (DB.user(CH.ownerId) || {}).name },
+        { key: 'add', label: 'Enviarlo también al chat', type: 'check', value: true }
+      ],
+      onSubmit(v) {
+        const u = DB.ensureUser(v.user); if (!u) return false;
+        const by = DB.ensureUser(v.by) || DB.user(CH.ownerId);
+        CH.pinned = { userId: u.id, text: v.text, byId: by.id };
+        if (v.add) pushItem({ type: 'msg', userId: u.id, text: v.text });
+        else { saveCH(); renderChat(CH, { keepScroll: true }); }
+        refreshUsersDatalist();
+      }
+    });
+  },
+  unpin() { CH.pinned = null; saveCH(); renderChat(CH, { keepScroll: true }); },
+  system() {
+    formModal({
+      title: 'Mensaje del sistema', submitLabel: 'Añadir',
+      fields: [{ key: 'text', label: 'Texto (gris, sin usuario)', type: 'textarea', required: true, placeholder: 'El chat está en modo solo emotes.' }],
+      onSubmit(v) { pushItem({ type: 'system', text: v.text }); }
+    });
+  }
+};
+
+/* ---------- Pegar guion: "usuario: mensaje" por línea ---------- */
+function scriptModal() {
+  openModal({
+    title: 'Pegar guion',
+    wide: true,
+    body: `
+      <p class="muted-p small">Una línea por mensaje con el formato <code>usuario: mensaje</code>. Los usuarios que no existan se crean solos.
+      Las líneas sin “:” se añaden como mensaje del sistema.</p>
+      <textarea id="scriptText" rows="12" placeholder="army_luna: JIMIN PLEASE 😭&#10;yoonminist: @army_luna calma jajaja&#10;kookie_97: /me se desmaya"></textarea>`,
+    footer: `<button class="btn ghost" data-close>Cancelar</button><button class="btn primary" id="scriptGo">Añadir al chat</button>`,
+    onMount(el, close) {
+      $('#scriptText', el).focus();
+      $('#scriptGo', el).onclick = () => {
+        const lines = $('#scriptText', el).value.split('\n').map(l => l.trim()).filter(Boolean);
+        let n = 0;
+        lines.forEach(line => {
+          const i = line.indexOf(':');
+          const name = i > 0 ? line.slice(0, i).trim() : '';
+          if (i > 0 && name && !/\s/.test(name) && !/^https?$/i.test(name)) {
+            const u = DB.ensureUser(name);
+            CH.messages.push({ id: uid(), time: currentTime(), type: 'msg', userId: u.id, text: line.slice(i + 1).trim() });
+          } else {
+            CH.messages.push({ id: uid(), time: currentTime(), type: 'system', text: line });
+          }
+          n++;
+        });
+        saveCH(); refreshUsersDatalist(); renderChat(CH); close();
+        toast(`✅ ${n} línea(s) añadidas`);
+      };
+    }
+  });
+}
+
+/* ---------- Captura ---------- */
+function enterCapture() { document.body.classList.add('capture'); renderChat(CH); }
+function exitCapture() { document.body.classList.remove('capture'); }
+
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+}
+async function downloadPNG() {
+  try {
+    if (!window.html2canvas) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    document.body.classList.add('shooting');
+    const canvas = await html2canvas($('#twChat'), { backgroundColor: '#18181b', scale: 2, useCORS: true, logging: false });
+    document.body.classList.remove('shooting');
+    const a = document.createElement('a');
+    const o = DB.user(CH.ownerId) || { name: 'chat' };
+    a.download = `chat_${o.name}_${Date.now()}.png`;
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  } catch (e) {
+    document.body.classList.remove('shooting');
+    console.error(e);
+    toast('No se pudo generar la imagen (¿sin conexión?). Usa el modo captura y haz una captura de pantalla.', 'error');
+  }
+}
+
+/* ---------- Ajustes del canal ---------- */
+function channelSettings(tab = 'general') {
+  const owner = DB.user(CH.ownerId);
+  const tabs = [['general', 'General'], ['roles', 'Mods · VIPs · Subs'], ['badges', 'Insignias de sub'], ['danger', 'Borrar']];
+  const refreshAll = () => { saveCH(); refreshUsersDatalist(); renderChat(CH, { keepScroll: true }); updateWhoPreview(); };
+
+  const TABS = {
+    general(body) {
+      body.innerHTML = `
+        <div class="settings-general">
+          <div class="avatar-edit">
+            <button class="avatar-btn big" id="setAvatar" title="Cambiar foto">${avatarHTML(owner, 72)}</button>
+            <small class="muted-p">Foto de perfil</small>
+          </div>
+          <div class="form">
+            <label class="field"><span>Nombre del canal (usuario streamer)</span><input id="setName" value="${esc(owner.name)}"></label>
+            <label class="field"><span>Color del nombre</span><input type="color" id="setColor" value="${esc(owner.color)}"></label>
+            <label class="field"><span>Título del directo</span><input id="setTitle" value="${esc(CH.title)}"></label>
+            <label class="field"><span>Categoría</span><input id="setCat" value="${esc(CH.category)}"></label>
+            <label class="field"><span>Espectadores</span><input id="setViewers" type="number" min="0" value="${CH.viewers || 0}"></label>
+            <div class="field"><span>Miniatura del directo</span>
+              <div class="row"><button class="btn ghost" id="setThumb">Subir imagen…</button>${CH.thumb ? '<button class="btn ghost" id="delThumb">Quitar</button>' : ''}</div></div>
+          </div>
+        </div>`;
+      $('#setAvatar', body).onclick = async () => { const i = await pickImage(160); if (i) { owner.avatar = i; refreshAll(); TABS.general(body); viewRefreshHead(); } };
+      $('#setName', body).onchange = e => {
+        if (!DB.renameUser(owner.id, e.target.value)) { toast('Ese nombre ya existe', 'error'); e.target.value = owner.name; return; }
+        refreshAll(); viewRefreshHead();
+      };
+      $('#setColor', body).onchange = e => { owner.color = e.target.value; refreshAll(); viewRefreshHead(); };
+      $('#setTitle', body).onchange = e => { CH.title = e.target.value; refreshAll(); viewRefreshHead(); };
+      $('#setCat', body).onchange = e => { CH.category = e.target.value; refreshAll(); };
+      $('#setViewers', body).onchange = e => { CH.viewers = Number(e.target.value) || 0; refreshAll(); };
+      $('#setThumb', body).onclick = async () => { const i = await pickImage(480); if (i) { CH.thumb = i; refreshAll(); TABS.general(body); } };
+      const del = $('#delThumb', body); if (del) del.onclick = () => { CH.thumb = null; refreshAll(); TABS.general(body); };
+    },
+
+    roles(body) {
+      const badgeOpts = CH.subBadges.map(b => `<option value="${b.id}">${esc(b.name || 'Sub')}${b.months ? ` (${b.months} m)` : ''}</option>`).join('');
+      body.innerHTML = `
+        <div class="card inner">
+          <div class="field"><span>Añadir varios a la vez <small>· nombres separados por comas (se crean si no existen)</small></span>
+            <div class="row wrap">
+              <input id="bulkNames" placeholder="army_luna, yoonminist" class="grow">
+              <select id="bulkRole">
+                <option value="mod">Moderador</option><option value="vip">VIP</option>
+                ${CH.subBadges.length ? CH.subBadges.map(b => `<option value="sub:${b.id}">Sub · ${esc(b.name || 'Sub')}</option>`).join('') : '<option value="" disabled>Sub (crea antes una insignia)</option>'}
+              </select>
+              <button class="btn primary" id="bulkRoleGo">Añadir</button>
+            </div>
+          </div>
+        </div>
+        <div class="row"><input id="roleSearch" class="search grow" placeholder="Buscar usuario…"><label class="check sm"><input type="checkbox" id="onlyRoles"><span>Solo con rol</span></label></div>
+        <div class="roles-table">
+          <div class="roles-row head"><span>Usuario</span><span>Mod</span><span>VIP</span><span>Sub</span></div>
+          <div id="rolesRows"></div>
+        </div>
+        ${CH.subBadges.length ? '' : '<p class="muted-p small">Para poner subs, primero crea al menos una insignia en la pestaña “Insignias de sub”.</p>'}`;
+
+      const rows = () => {
+        const q = $('#roleSearch', body).value.trim().toLowerCase();
+        const only = $('#onlyRoles', body).checked;
+        const users = DB.data.users.filter(u => u.id !== CH.ownerId && u.name.toLowerCase().includes(q))
+          .filter(u => !only || CH.mods.includes(u.id) || CH.vips.includes(u.id) || CH.subs[u.id])
+          .sort((a, b) => a.name.localeCompare(b.name));
+        $('#rolesRows', body).innerHTML = users.map(u => `
+          <div class="roles-row" data-uid="${u.id}">
+            <span class="r-name"><span class="tw-badges">${badgesHTML(CH, u)}</span><b style="color:${readableColor(u.color)}">${esc(u.name)}</b></span>
+            <span><input type="checkbox" data-r="mod"${CH.mods.includes(u.id) ? ' checked' : ''}></span>
+            <span><input type="checkbox" data-r="vip"${CH.vips.includes(u.id) ? ' checked' : ''}></span>
+            <span><select data-r="sub"${CH.subBadges.length ? '' : ' disabled'}><option value="">—</option>${badgeOpts}</select></span>
+          </div>`).join('') || '<p class="muted-p small" style="padding:10px">No hay usuarios.</p>';
+        $$('select[data-r="sub"]', body).forEach(sel => { sel.value = CH.subs[sel.closest('[data-uid]').dataset.uid] || ''; });
+      };
+      rows();
+      $('#roleSearch', body).oninput = rows;
+      $('#onlyRoles', body).onchange = rows;
+      $('#rolesRows', body).addEventListener('change', e => {
+        const uidv = e.target.closest('[data-uid]').dataset.uid; const r = e.target.dataset.r;
+        if (r === 'mod' || r === 'vip') {
+          const arr = r === 'mod' ? CH.mods : CH.vips;
+          const i = arr.indexOf(uidv);
+          if (e.target.checked && i < 0) arr.push(uidv);
+          if (!e.target.checked && i >= 0) arr.splice(i, 1);
+        } else if (r === 'sub') {
+          if (e.target.value) CH.subs[uidv] = e.target.value; else delete CH.subs[uidv];
+        }
+        refreshAll(); rows();
+      });
+      $('#bulkRoleGo', body).onclick = () => {
+        const role = $('#bulkRole', body).value; if (!role) return;
+        const names = $('#bulkNames', body).value.split(/[,\n;]+/).map(cleanName).filter(Boolean);
+        if (!names.length) return;
+        names.forEach(n => {
+          const u = DB.ensureUser(n); if (u.id === CH.ownerId) return;
+          if (role === 'mod' && !CH.mods.includes(u.id)) CH.mods.push(u.id);
+          else if (role === 'vip' && !CH.vips.includes(u.id)) CH.vips.push(u.id);
+          else if (role.startsWith('sub:')) CH.subs[u.id] = role.slice(4);
+        });
+        $('#bulkNames', body).value = '';
+        refreshAll(); rows();
+        toast(`✅ ${names.length} usuario(s) actualizados`);
+      };
+    },
+
+    badges(body) {
+      body.innerHTML = `
+        <p class="muted-p small">Las insignias de sub son propias de cada canal. Puedes subir tu imagen (cuadrada, mejor 72×72) o usar una de las incluidas.
+        Los “meses” sirven para que al poner una sub/resub se elija la insignia que toca.</p>
+        <div class="badge-list" id="badgeList"></div>
+        <div class="card inner">
+          <h4 class="card-title">Nueva insignia</h4>
+          <div class="row wrap">
+            <input id="bName" placeholder="Nombre (p. ej. Sub Jimin)" class="grow">
+            <input id="bMonths" type="number" min="0" value="0" style="width:90px" title="Desde cuántos meses">
+            <button class="btn primary" id="bUpload">Subir imagen…</button>
+          </div>
+          <div class="presets"><small class="muted-p">O usa una incluida:</small>
+            ${['jimin_sub', 'yoongi_sub', 'jungkook_sub'].map(p => `<button class="preset" data-preset="img/presets/${p}.png" title="${p}"><img src="img/presets/${p}.png" alt=""></button>`).join('')}
+          </div>
+        </div>`;
+      const list = () => {
+        $('#badgeList', body).innerHTML = CH.subBadges.length ? CH.subBadges.map(b => `
+          <div class="badge-row" data-bid="${b.id}">
+            <img src="${esc(b.src)}" alt="">
+            <input value="${esc(b.name)}" data-f="name" class="grow">
+            <label class="months">desde <input type="number" min="0" value="${b.months || 0}" data-f="months"> meses</label>
+            <span class="muted-p small">${Object.values(CH.subs).filter(x => x === b.id).length} subs</span>
+            <button class="icon-btn danger" data-del>✕</button>
+          </div>`).join('') : '<p class="muted-p small">Sin insignias todavía.</p>';
+      };
+      list();
+      const add = src => {
+        const name = $('#bName', body).value.trim() || 'Suscriptor';
+        CH.subBadges.push({ id: uid(), name, src, months: Number($('#bMonths', body).value) || 0 });
+        $('#bName', body).value = '';
+        refreshAll(); list();
+      };
+      $('#bUpload', body).onclick = async () => { const i = await pickImage(72); if (i) add(i); };
+      $$('[data-preset]', body).forEach(b => b.onclick = () => add(b.dataset.preset));
+      $('#badgeList', body).addEventListener('change', e => {
+        const b = CH.subBadges.find(x => x.id === e.target.closest('[data-bid]').dataset.bid);
+        if (e.target.dataset.f === 'name') b.name = e.target.value;
+        if (e.target.dataset.f === 'months') b.months = Number(e.target.value) || 0;
+        refreshAll();
+      });
+      $('#badgeList', body).addEventListener('click', async e => {
+        if (!e.target.closest('[data-del]')) return;
+        const id = e.target.closest('[data-bid]').dataset.bid;
+        if (!(await confirmModal('¿Borrar esta insignia? Los subs que la tengan se quedarán sin insignia.'))) return;
+        CH.subBadges = CH.subBadges.filter(x => x.id !== id);
+        Object.keys(CH.subs).forEach(k => { if (CH.subs[k] === id) delete CH.subs[k]; });
+        refreshAll(); list();
+      });
+    },
+
+    danger(body, close) {
+      body.innerHTML = `
+        <p class="muted-p">Borrar el canal elimina su chat, roles e insignias. El usuario <b>${esc(owner.name)}</b> se mantiene.</p>
+        <button class="btn danger" id="delCh">Borrar canal</button>`;
+      $('#delCh', body).onclick = async () => {
+        if (!(await confirmModal(`¿Borrar el canal <b>${esc(owner.name)}</b> para siempre?`))) return;
+        DB.deleteChannel(CH.id); DB.save(); close(); location.hash = '#/';
+      };
+    }
+  };
+
+  openModal({
+    title: 'Ajustes del canal',
+    wide: true,
+    body: `<div class="tabs">${tabs.map(([k, l]) => `<button class="tab${k === tab ? ' active' : ''}" data-tab="${k}">${l}</button>`).join('')}</div><div id="tabBody"></div>`,
+    onMount(el, close) {
+      const body = $('#tabBody', el);
+      const show = t => {
+        $$('.tab', el).forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+        TABS[t](body, close);
+      };
+      el.addEventListener('click', e => { const t = e.target.closest('[data-tab]'); if (t) show(t.dataset.tab); });
+      show(tab);
+    }
+  });
+}
+
+function viewRefreshHead() {
+  const owner = DB.user(CH.ownerId);
+  const head = $('.ctrl-head');
+  if (!head) return;
+  head.querySelector('.avatar').outerHTML = avatarHTML(owner, 34);
+  head.querySelector('.ctrl-head-meta').innerHTML = `<b>${esc(owner.name)}</b><span>${esc(CH.title || 'Sin título')}</span>`;
+}
+
+/* =====================================================
+   Copia de seguridad
+===================================================== */
+function exportData() {
+  const blob = new Blob([JSON.stringify(DB.data)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const d = new Date();
+  a.download = `faketv_copia_${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function importData() {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'application/json,.json';
+  inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return;
+    try {
+      const data = JSON.parse(await f.text());
+      if (!data || !Array.isArray(data.users) || !Array.isArray(data.channels)) throw new Error('formato');
+      if (!(await confirmModal('Esto <b>reemplaza</b> todos tus datos actuales por los de la copia. ¿Seguir?', 'Importar'))) return;
+      DB.replaceAll(data); refreshUsersDatalist(); route();
+      toast('✅ Copia importada');
+    } catch (e) { toast('Archivo no válido', 'error'); }
+  };
+  inp.click();
+}
+
+/* =====================================================
+   Router + arranque
+===================================================== */
+function route() {
+  exitCapture();
+  document.removeEventListener('mousedown', closeEmotePop);
+  const parts = (location.hash.slice(1) || '/').split('/').filter(Boolean);
+  if (parts[0] === 'c' && parts[1]) return viewChannel(parts[1]);
+  if (parts[0] === 'users') return viewUsers();
+  if (parts[0] === 'emotes') return viewEmotes();
+  viewHome();
+}
+
+/* Instalar como app (PWA) */
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); installEvt = e; $('#installBtn').hidden = false;
+});
+window.addEventListener('appinstalled', () => { $('#installBtn').hidden = true; toast('✅ App instalada'); });
+
+document.addEventListener('DOMContentLoaded', () => {
+  DB.load();
+  refreshUsersDatalist();
+  $('#installBtn').onclick = async () => {
+    if (!installEvt) return;
+    installEvt.prompt();
+    await installEvt.userChoice;
+    installEvt = null; $('#installBtn').hidden = true;
+  };
+  $('#exportBtn').onclick = exportData;
+  $('#importBtn').onclick = importData;
+  window.addEventListener('hashchange', route);
+  route();
+
+  // Pedir que el navegador no borre los datos por falta de espacio
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+});

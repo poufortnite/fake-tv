@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>fake.tv — chats de Twitch para tus AU</title>
+<meta name="description" content="Crea chats de Twitch falsos para tus AU. Todo se guarda en tu dispositivo.">
+<meta name="theme-color" content="#0e0e10">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="topnav">
+  <a href="#/" class="logo">
+    <img src="icons/icon.svg" alt="" width="28" height="28">
+    <span>fake<b>.tv</b></span>
+  </a>
+  <nav class="nav">
+    <a href="#/" class="nav-link" data-nav="home">Canales</a>
+    <a href="#/users" class="nav-link" data-nav="users">Usuarios</a>
+    <a href="#/emotes" class="nav-link" data-nav="emotes">Emotes</a>
+  </nav>
+  <div class="nav-right">
+    <button class="btn ghost sm" id="installBtn" hidden>⬇ Instalar app</button>
+    <button class="btn ghost sm" id="exportBtn" title="Descargar copia de seguridad (.json)">Exportar</button>
+    <button class="btn ghost sm" id="importBtn" title="Cargar copia de seguridad">Importar</button>
+  </div>
+</header>
+
+<main id="view"></main>
+
+<datalist id="usersDL"></datalist>
+<div id="modalRoot"></div>
+<div id="toasts"></div>
+
+<script src="js/store.js"></script>
+<script src="js/chat.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
