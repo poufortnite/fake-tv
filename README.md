@@ -1,53 +1,30 @@
 # fake.tv
 
-Crea chats de Twitch falsos (vista PC, tema oscuro) para tus AU.
-**No usa servidor ni base de datos**: todo se guarda en el navegador de cada persona, en su propio dispositivo.
+Crea chats de Twitch falsos para tus AU, con el aspecto del chat de Twitch en ordenador.
+
+👉 **[poufortnite.github.io/fake-tv](https://poufortnite.github.io/fake-tv/)**
+
+No hace falta registrarse. Todo lo que creas se guarda en tu propio dispositivo.
 
 ## Qué puedes hacer
 
-- **Perfiles de canal**: banner, foto, biografía, seguidores, redes, en directo o desconectado, y vídeos (emisiones anteriores, destacados, subidas y clips).
-- **Página Chat**: elige de qué canal abrir el chat (también se entra desde el perfil del canal).
-- **Canales**: cada canal tiene su chat, sus mods, VIPs, subs e insignias de sub propias. Al crear un canal se crea también su usuario (el streamer).
-- **Usuarios globales**: añade muchos a la vez escribiéndolos separados por comas. Cualquiera puede escribir en cualquier canal.
-- **Escribir rápido**: elige usuario (con autocompletado) o pulsa 🎲 para uno aleatorio. Si escribes un nombre que no existe, se crea solo.
-- **Pegar guion**: pega muchas líneas `usuario: mensaje` y se añaden todas de golpe.
-- **Eventos**: subs (nivel 1/2/3/Prime, meses), regalos de subs, raids, bits, anuncios, mensaje fijado, mensajes del sistema.
-- **En cada mensaje** (pasa el ratón por encima): responder, fijar, editar (hora, destacado, primer mensaje, `<mensaje eliminado>`), borrar.
-- **Emotes**: los globales de Twitch y los tuyos propios (PNG/WEBP/GIF).
-- **Punto de vista**: elige quién “mira” el chat y sus menciones se resaltan en rojo, como en Twitch.
-- **Modo captura** (Esc para salir) y **Descargar PNG**.
-- **Guardar copia / Cargar copia**: un `.json` con todos tus datos (¡haz copias de vez en cuando!).
+- **Canales con perfil**: banner, foto, biografía, seguidores, redes sociales y vídeos (emisiones anteriores, destacados, subidas y clips). Puedes ponerlos en directo o desconectados, y seguirlos o suscribirte.
+- **Chat de cada canal** con sus propios moderadores, VIPs, suscriptores e insignias de sub.
+- **Usuarios**: crea muchos a la vez escribiendo los nombres separados por comas. Cualquiera puede escribir en cualquier canal.
+- **Escribir rápido**: elige quién escribe o pulsa 🎲 para que salga alguien al azar. Si escribes un nombre que no existe, se crea solo.
+- **Pegar guion**: pega muchas líneas con el formato `usuario: mensaje` y se añaden todas de golpe.
+- **Eventos**: subs, regalos de subs, raids, bits, anuncios, mensajes fijados y mensajes del sistema.
+- **En cada mensaje**: responder, fijar, editar (hora, destacado, primer mensaje, mensaje eliminado) o borrar.
+- **Emotes**: los de Twitch y los tuyos propios (PNG, WEBP o GIF).
+- **Punto de vista**: elige quién está mirando el chat y sus menciones salen resaltadas, como en Twitch.
+- **Modo captura** y **Descargar PNG** para sacar la imagen del chat o del perfil.
 
-## Publicar en GitHub Pages
+## Instalarla como app
 
-1. Crea un repositorio y sube **el contenido** de esta carpeta (que `index.html` quede en la raíz).
-2. En el repo: **Settings → Pages → Build and deployment → Source: Deploy from a branch**, rama `main`, carpeta `/ (root)`.
-3. En un par de minutos estará en `https://TU_USUARIO.github.io/NOMBRE_DEL_REPO/`.
+Toca **Instalar** arriba a la derecha y elige Android, iPhone u ordenador: te salen los pasos. Una vez instalada funciona también sin internet (los emotes de Twitch necesitan conexión la primera vez que se ven).
 
-Cuando subas cambios, cambia `VERSION` en `sw.js` (p. ej. `faketv-v2`) para que quien la tenga instalada reciba la versión nueva.
+## Tus datos
 
-## Instalar como app
+Todo se guarda en el navegador del dispositivo que uses: no se sube a ningún sitio y nadie más puede verlo.
 
-- Botón **Instalar** arriba a la derecha: explica los pasos para Android, iPhone y ordenador (en Chrome/Edge se instala con un clic).
-
-Funciona sin conexión (los emotes de Twitch necesitan internet la primera vez que se ven).
-
-## Dónde están los datos
-
-En el almacenamiento del navegador (IndexedDB), en ese dispositivo y en esa web. Si borras los datos del navegador se pierden, por eso existe **Guardar copia**.
-Las imágenes que subes se reducen automáticamente para ocupar poco.
-
-## Estructura
-
-```
-index.html
-manifest.webmanifest   ← para que se pueda instalar
-sw.js                  ← funcionamiento sin conexión
-css/style.css
-js/store.js            ← datos (IndexedDB)
-js/chat.js             ← cómo se pinta el chat
-js/app.js              ← pantallas y botones
-img/badges/            ← streamer, mod, vip, verificado
-img/presets/           ← insignias de sub genéricas
-icons/
-```
+Por eso, si borras los datos del navegador o cambias de móvil, se pierde. Usa **Guardar copia** de vez en cuando para descargar un archivo con todo, y **Cargar copia** para recuperarlo o pasarlo a otro dispositivo.
