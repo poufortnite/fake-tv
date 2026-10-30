@@ -1,13 +1,13 @@
 /* fake.tv — service worker: permite usar la app sin conexión.
    Sube el número de VERSION cada vez que publiques cambios. */
-const VERSION = 'faketv-v1';
+const VERSION = 'faketv-v2';
 const RUNTIME = 'faketv-runtime';
 const APP_SHELL = [
   './', 'index.html', 'manifest.webmanifest',
   'css/style.css', 'js/store.js', 'js/chat.js', 'js/app.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png',
   'img/badges/broadcaster.png', 'img/badges/mod.png', 'img/badges/vip.png', 'img/badges/verified.png',
-  'img/presets/jimin_sub.png', 'img/presets/yoongi_sub.png', 'img/presets/jungkook_sub.png'
+  'img/presets/sub_1.png', 'img/presets/sub_3.png', 'img/presets/sub_6.png', 'img/presets/sub_12.png'
 ];
 // Recursos externos que guardamos al usarlos (fuentes, emotes de Twitch, bits, html2canvas)
 const RUNTIME_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'static-cdn.jtvnw.net', 'd3aqoihi2n8ty8.cloudfront.net', 'cdnjs.cloudflare.com'];
@@ -31,7 +31,7 @@ self.addEventListener('fetch', e => {
   // Archivos de la app: primero red (para recibir actualizaciones), si no hay conexión, caché
   if (url.origin === self.location.origin) {
     e.respondWith(
-      fetch(req).then(res => {
+      fetch(req, { cache: 'no-cache' }).then(res => {
         if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
         return res;
       }).catch(() => caches.match(req, { ignoreSearch: true }).then(r => r || caches.match('index.html')))

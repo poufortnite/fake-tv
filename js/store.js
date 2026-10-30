@@ -35,39 +35,92 @@ function newChannelSettings() {
   };
 }
 
+/* IndexedDB: cabe mucho más que en localStorage (banners, miniaturas…) */
+const IDB = {
+  db: null,
+  open() {
+    if (this.db) return Promise.resolve(this.db);
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('faketv', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('kv');
+      r.onsuccess = () => res(this.db = r.result);
+      r.onerror = () => rej(r.error);
+    });
+  },
+  async get(key) {
+    const db = await this.open();
+    return new Promise((res, rej) => {
+      const r = db.transaction('kv').objectStore('kv').get(key);
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    });
+  },
+  async put(key, val) {
+    const db = await this.open();
+    return new Promise((res, rej) => {
+      const tx = db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put(val, key);
+      tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+    });
+  }
+};
+
 const DB = {
   data: emptyData(),
+  _timer: null,
+  _useLocal: false,
 
-  load() {
+  async load() {
+    let data = null;
     try {
-      const raw = localStorage.getItem(STORE_KEY);
-      if (raw) this.data = JSON.parse(raw);
-    } catch (e) { console.error(e); }
-    if (!this.data || typeof this.data !== 'object') this.data = emptyData();
-    this.data.users ||= [];
-    this.data.channels ||= [];
-    this.data.emotes ||= [];
-    this.data.channels.forEach(ch => {
+      data = await IDB.get('data');
+      if (!data) {                       // datos antiguos de localStorage → se pasan a IndexedDB
+        const raw = localStorage.getItem(STORE_KEY);
+        if (raw) { data = JSON.parse(raw); await IDB.put('data', data); localStorage.removeItem(STORE_KEY); }
+      }
+    } catch (e) {
+      console.warn('IndexedDB no disponible, uso localStorage', e);
+      this._useLocal = true;
+      try { data = JSON.parse(localStorage.getItem(STORE_KEY)); } catch { data = null; }
+    }
+    this.data = data && typeof data === 'object' ? data : emptyData();
+    this.normalize();
+  },
+
+  normalize() {
+    const d = this.data;
+    d.version = 1;
+    d.users ||= []; d.channels ||= []; d.emotes ||= [];
+    d.channels.forEach(ch => {
       ch.settings = Object.assign(newChannelSettings(), ch.settings || {});
       ch.mods ||= []; ch.vips ||= []; ch.subs ||= {}; ch.subBadges ||= []; ch.messages ||= [];
+      ch.videos ||= []; ch.links ||= [];
+      if (ch.live === undefined) ch.live = true;
+      if (ch.followers === undefined) ch.followers = Math.floor(1000 + Math.random() * 50000);
+      ch.bio ||= ''; ch.banner ||= null;
     });
   },
 
+  /** Guarda (agrupa los cambios seguidos en una sola escritura) */
   save() {
+    clearTimeout(this._timer);
+    this._timer = setTimeout(() => this.flush(), 120);
+    return true;
+  },
+  async flush() {
+    clearTimeout(this._timer); this._timer = null;
     try {
-      localStorage.setItem(STORE_KEY, JSON.stringify(this.data));
-      return true;
+      if (this._useLocal) localStorage.setItem(STORE_KEY, JSON.stringify(this.data));
+      else await IDB.put('data', this.data);
     } catch (e) {
       console.error(e);
-      if (typeof toast === 'function') toast('⚠️ No queda espacio en el navegador. Exporta una copia y borra imágenes o mensajes viejos.', 'error');
-      return false;
+      if (typeof toast === 'function') toast('⚠️ No se pudo guardar: el dispositivo no tiene espacio. Guarda una copia y borra imágenes que no uses.', 'error');
     }
   },
 
-  replaceAll(data) {
-    localStorage.setItem(STORE_KEY, JSON.stringify(data));
-    this.data = emptyData();
-    this.load();
+  async replaceAll(data) {
+    this.data = data;
+    this.normalize();
+    await this.flush();
   },
 
   /* ---------- usuarios ---------- */
@@ -125,7 +178,8 @@ const DB = {
       id: uid(), ownerId: owner.id, title, category,
       viewers: Math.floor(200 + Math.random() * 4000), thumb: null,
       mods: [], vips: [], subs: {}, subBadges: [],
-      messages: [], pinned: null, settings: newChannelSettings(), created: Date.now()
+      messages: [], pinned: null, settings: newChannelSettings(), created: Date.now(),
+      live: true, followers: Math.floor(1000 + Math.random() * 50000), bio: '', banner: null, links: [], videos: []
     };
     this.data.channels.push(ch);
     return ch;
@@ -178,3 +232,7 @@ function pickImage(maxSize) {
     inp.click();
   });
 }
+
+// Que no se pierda nada al cerrar o cambiar de app
+window.addEventListener('pagehide', () => { if (DB._timer) DB.flush(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && DB._timer) DB.flush(); });
