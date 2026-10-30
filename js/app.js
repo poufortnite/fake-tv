@@ -1171,7 +1171,8 @@ function viewProfile(id) {
         </div>
         <div class="prof-player-title"><b>${esc(ch.title || 'Sin título')}</b>${ch.category ? `<span>${esc(ch.category)}</span>` : ''}</div>
       </div>` : `
-      <div class="prof-banner" style="${banner}">
+      <div class="prof-off">
+        <div class="prof-banner" style="${banner}"></div>
         <div class="offline-card">
           <span class="offline-pill">DESCONECTADO</span>
           <b>${esc(o.name)} está desconectado.</b>

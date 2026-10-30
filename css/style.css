@@ -402,8 +402,11 @@ body.capture .exit-capture:hover { opacity: 1; }
 .prof-tools .btn.capture { width: auto; margin: 0; }
 .prof { max-width: 1200px; margin: 10px auto 0; background: var(--bg); padding-bottom: 30px; }
 
-.prof-banner, .prof-player {
-  aspect-ratio: 1200 / 400; max-height: 420px; width: 100%;
+.prof-off { position: relative; }
+/* El banner se ve entero: misma proporción que en Twitch (1200 × 480) */
+.prof-banner { aspect-ratio: 1200 / 480; width: 100%; background-size: cover; background-position: center; }
+.prof-player {
+  aspect-ratio: 16 / 9; max-height: 480px; width: 100%;
   background-size: cover; background-position: center; position: relative;
 }
 .offline-card {
@@ -508,7 +511,7 @@ body.capture .prof-tools, body.capture .vid-add, body.capture .vid-edit, body.sh
 body.capture .prof { margin-top: 0; }
 
 /* edición del banner y campos de imagen */
-.banner-edit { aspect-ratio: 1200/400; max-height: 190px; width: 100%; background: var(--bg-3) center/cover; border-radius: 6px; position: relative; display: flex; align-items: center; justify-content: center; color: var(--muted); margin-bottom: 14px; }
+.banner-edit { aspect-ratio: 1200/480; max-height: 240px; width: 100%; background: var(--bg-3) center/cover; border-radius: 6px; position: relative; display: flex; align-items: center; justify-content: center; color: var(--muted); margin-bottom: 14px; }
 .banner-edit-btns { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 6px; }
 .img-field { display: flex; gap: 10px; align-items: center; }
 .img-prev { width: 128px; aspect-ratio: 16/9; background: var(--bg-3) center/cover; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--muted); flex-shrink: 0; }
@@ -613,10 +616,8 @@ body.capture .prof { margin-top: 0; }
 
   /* Perfil */
   .prof { margin-top: 8px; }
-  .prof-banner, .prof-player { aspect-ratio: 16 / 9; max-height: none; }
-  .offline-card { position: static; max-width: none; margin: 0; border-radius: 0; background: var(--bg-2); box-shadow: none; }
-  .prof-banner { display: flex; flex-direction: column; justify-content: flex-end; }
-  .prof-banner:has(.offline-card) { aspect-ratio: auto; padding-top: 42%; }
+  .prof-player { aspect-ratio: 16 / 9; max-height: none; }
+  .offline-card { position: static; max-width: none; margin: 0; border-radius: 0; background: var(--bg-2); box-shadow: none; padding: 10px 14px; }
   .prof-head { flex-wrap: wrap; padding: 12px 14px 6px; gap: 12px; }
   .prof-id h1 { font-size: 19px; }
   .prof-actions { margin-left: 0; width: 100%; }
