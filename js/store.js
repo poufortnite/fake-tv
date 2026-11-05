@@ -1,6 +1,6 @@
 /* =====================================================
    fake.tv — store.js
-   Todos los datos viven en el navegador (localStorage).
+   Todos los datos viven en el navegador (IndexedDB).
    Nada sale del dispositivo.
 ===================================================== */
 'use strict';
@@ -25,6 +25,10 @@ const cleanName = s => String(s || '').trim().replace(/^@/, '').replace(/\s+/g, 
 
 function emptyData() {
   return { version: 1, users: [], channels: [], emotes: [] };
+}
+
+function isEmptyData(d) {
+  return !d || (!(d.users || []).length && !(d.channels || []).length && !(d.emotes || []).length);
 }
 
 function newChannelSettings() {
@@ -69,21 +73,50 @@ const DB = {
   _timer: null,
   _useLocal: false,
 
+  loaded: false,      // hasta que se cargan los datos NO se guarda nada (así nunca se pisan con datos vacíos)
+  blocked: false,     // si no se han podido leer los datos, no se guarda para no sobrescribirlos
+  recovered: null,    // copia automática disponible si los datos aparecen vacíos
+
   async load() {
-    let data = null;
-    try {
-      data = await IDB.get('data');
-      if (!data) {                       // datos antiguos de localStorage → se pasan a IndexedDB
-        const raw = localStorage.getItem(STORE_KEY);
-        if (raw) { data = JSON.parse(raw); await IDB.put('data', data); localStorage.removeItem(STORE_KEY); }
-      }
-    } catch (e) {
-      console.warn('IndexedDB no disponible, uso localStorage', e);
+    let data = null, ok = false;
+    if (!('indexedDB' in window)) {
       this._useLocal = true;
       try { data = JSON.parse(localStorage.getItem(STORE_KEY)); } catch { data = null; }
+      ok = true;
+    } else {
+      for (let i = 0; i < 3 && !ok; i++) {
+        try {
+          data = await IDB.get('data');
+          if (!data) {                     // datos antiguos de localStorage → se pasan a IndexedDB
+            const raw = localStorage.getItem(STORE_KEY);
+            if (raw) { data = JSON.parse(raw); await IDB.put('data', data); localStorage.removeItem(STORE_KEY); }
+          }
+          ok = true;
+        } catch (e) {
+          console.warn('No se pudieron leer los datos, reintento', e);
+          IDB.db = null;
+          await new Promise(r => setTimeout(r, 400));
+        }
+      }
+    }
+    if (!ok) {
+      this.blocked = true;
+      this.data = emptyData(); this.normalize(); this.loaded = true;
+      return;
     }
     this.data = data && typeof data === 'object' ? data : emptyData();
     this.normalize();
+    this.loaded = true;
+    // Copia automática: guarda lo que había al abrir la app (por si algo sale mal)
+    if (!this._useLocal) {
+      try {
+        if (!isEmptyData(this.data)) await IDB.put('backup', { date: Date.now(), data: this.data });
+        else {
+          const b = await IDB.get('backup');
+          if (b && b.data && !isEmptyData(b.data)) this.recovered = b;
+        }
+      } catch (e) { console.warn(e); }
+    }
   },
 
   normalize() {
@@ -108,6 +141,7 @@ const DB = {
   },
   async flush() {
     clearTimeout(this._timer); this._timer = null;
+    if (!this.loaded || this.blocked) return;   // nunca guardar antes de haber cargado
     try {
       if (this._useLocal) localStorage.setItem(STORE_KEY, JSON.stringify(this.data));
       else await IDB.put('data', this.data);
@@ -120,6 +154,7 @@ const DB = {
   async replaceAll(data) {
     this.data = data;
     this.normalize();
+    this.loaded = true; this.blocked = false; this.recovered = null;
     await this.flush();
   },
 

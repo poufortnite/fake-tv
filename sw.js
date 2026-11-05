@@ -1,6 +1,7 @@
 /* fake.tv — service worker: permite usar la app sin conexión.
+   Solo borra sus propias cachés (comparte dominio con otras apps de poufortnite.github.io).
    Sube el número de VERSION cada vez que publiques cambios. */
-const VERSION = 'faketv-v10';
+const VERSION = 'faketv-v11';
 const RUNTIME = 'faketv-runtime';
 const APP_SHELL = [
   './', 'index.html', 'manifest.webmanifest',
@@ -18,7 +19,7 @@ self.addEventListener('install', e => {
 
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION && k !== RUNTIME).map(k => caches.delete(k))))
+    caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith('faketv') && k !== VERSION && k !== RUNTIME).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });

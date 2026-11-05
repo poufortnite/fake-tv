@@ -1462,6 +1462,47 @@ function viewProfile(id) {
   $('#exitCapture').onclick = e => { e.stopPropagation(); exitCapture(); };
 }
 
+
+/* =====================================================
+   Copia automática y recordatorio de copia
+===================================================== */
+const LAST_EXPORT_KEY = 'faketv:lastExport';
+const fmtDate = t => new Date(t).toLocaleString('es-ES', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+
+const plural = (n, one, many) => `<b>${n}</b> ${n === 1 ? one : many}`;
+
+function offerRecovery() {
+  const b = DB.recovered, d = b.data;
+  openModal({
+    title: 'Recuperar tus datos',
+    body: `<p class="muted-p">La app está vacía, pero hay una <b>copia automática</b> del ${fmtDate(b.date)} con
+      ${plural((d.channels || []).length, 'canal', 'canales')} y ${plural((d.users || []).length, 'usuario', 'usuarios')}.</p>
+      <p class="muted-p small">Si la recuperas, vuelve todo tal y como estaba ese día.</p>`,
+    footer: `<button class="btn ghost" data-close>Ahora no</button><button class="btn primary" id="doRecover">Recuperar</button>`,
+    onMount(el, close) {
+      $('#doRecover', el).onclick = async () => {
+        await DB.replaceAll(d); refreshUsersDatalist(); close(); route();
+        toast('✅ Datos recuperados');
+      };
+    }
+  });
+}
+
+function backupReminder() {
+  if (isEmptyData(DB.data)) return;
+  let last = 0;
+  try { last = Number(localStorage.getItem(LAST_EXPORT_KEY)) || 0; } catch {}
+  const days = (Date.now() - last) / 86400000;
+  if (last && days < 7) return;
+  const bar = document.createElement('div');
+  bar.className = 'backup-bar';
+  bar.innerHTML = `<span>💾 ${last ? `Hace ${Math.floor(days)} días que no guardas una copia.` : 'Todavía no has guardado ninguna copia de tus datos.'} Si el navegador los borra, solo podrás recuperarlos con ella.</span>
+    <button class="btn primary sm" id="barExport">Guardar copia</button><button class="icon-btn xs" id="barClose" title="Cerrar">✕</button>`;
+  document.body.appendChild(bar);
+  $('#barExport').onclick = () => { exportData(); bar.remove(); };
+  $('#barClose').onclick = () => bar.remove();
+}
+
 /* =====================================================
    Copia de seguridad
 ===================================================== */
@@ -1470,6 +1511,8 @@ function exportData() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   const d = new Date();
+  try { localStorage.setItem(LAST_EXPORT_KEY, String(Date.now())); } catch {}
+  $('.backup-bar')?.remove();
   a.download = `faketv_copia_${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
@@ -1595,6 +1638,7 @@ function setupInstall() {
       const reload = async () => {
         const busy = $('#modalRoot .modal-back') || ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName);
         if (busy) return setTimeout(reload, 3000);
+        if (!DB.loaded) return setTimeout(reload, 500);   // no recargar hasta tener los datos cargados
         await DB.flush();
         location.reload();
       };
@@ -1745,12 +1789,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   await DB.load();
   refreshUsersDatalist();
+  if (DB.blocked) toast('⚠️ No se han podido leer tus datos. Cierra la app y vuelve a abrirla (no se ha borrado nada).', 'error');
   window.addEventListener('hashchange', route);
   route();
   $('#helpBtn').onclick = () => openTutorial(false);
   let seen = false;
   try { seen = !!localStorage.getItem(TUTO_KEY); } catch {}
-  if (!seen) openTutorial(!DB.data.channels.length);
+  if (DB.recovered) offerRecovery();
+  else if (!seen) openTutorial(!DB.data.channels.length);
+  backupReminder();
   // Pedir que el navegador no borre los datos por falta de espacio
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 });
